@@ -1,0 +1,40 @@
+name: mint
+description: MINT — OSINT intelligence feed. Clean architecture Flutter client.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Backend
+  supabase_flutter: ^2.5.6
+
+  # State management (three-layer friendly, ChangeNotifier based)
+  provider: ^6.1.2
+
+  # Routing
+  go_router: ^14.2.0
+
+  # UI
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.3.1
+  video_player: ^2.9.1
+
+  # Utils
+  equatable: ^2.0.5
+  intl: ^0.19.0
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
