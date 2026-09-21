@@ -1,13 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mint/features/profile/presentation/providers/profile_cubit.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
-import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/providers/auth_cubit.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
-import '../../features/media/presentation/pages/live_page.dart';
 import '../../features/media/presentation/pages/reels_page.dart';
 import '../../features/moderation/presentation/pages/admin_dashboard_page.dart';
 import '../../features/moderation/presentation/pages/feedback_page.dart';
@@ -15,23 +17,33 @@ import '../../features/profile/presentation/pages/apply_osint_page.dart';
 import '../../features/profile/presentation/pages/channel_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/settings_page.dart';
-import '../../features/profile/presentation/providers/profile_provider.dart';
 import '../../features/search/presentation/pages/search_page.dart';
 import '../../features/shell/presentation/pages/app_shell.dart';
 import '../../features/shell/presentation/pages/not_found_page.dart';
 import '../../features/stories/presentation/pages/articles_page.dart';
 import '../../features/stories/presentation/pages/story_detail_page.dart';
 import 'app_routes.dart';
-import 'router_refresh.dart';
 
-/// Builds the app's router.
-///
-/// Redirect rules, in order:
-///   1. A password-recovery session goes to the reset form and nowhere else.
-///   2. Signed-out users are pushed to /login, keeping the intended
-///      destination so they land there after signing in.
-///   3. Signed-in users on an auth screen are moved into the feed.
-///   4. /admin additionally requires the admin role.
+/// Bridges multiple Cubit streams into a single Listenable for GoRouter.
+class RouterRefreshStream extends ChangeNotifier {
+  RouterRefreshStream(List<Stream<dynamic>> streams) {
+    notifyListeners();
+    for (final stream in streams) {
+      _subscriptions.add(stream.listen((_) => notifyListeners()));
+    }
+  }
+
+  final List<StreamSubscription> _subscriptions = [];
+
+  @override
+  void dispose() {
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    super.dispose();
+  }
+}
+
 class AppRouter {
   const AppRouter._();
 
@@ -41,28 +53,36 @@ class AppRouter {
       GlobalKey<NavigatorState>(debugLabel: 'shell');
 
   static GoRouter build({
-    required AuthProvider auth,
-    required ProfileProvider profile,
+    required AuthCubit authCubit,
+    required ProfileCubit profileCubit,
   }) {
     return GoRouter(
       navigatorKey: _rootKey,
       initialLocation: AppRoutes.feed,
-      refreshListenable: RouterRefresh(auth),
+      // Listen to both Cubits natively!
+      refreshListenable: RouterRefreshStream([
+        authCubit.stream,
+        profileCubit.stream,
+      ]),
       debugLogDiagnostics: false,
       errorBuilder: (context, state) =>
           NotFoundPage(path: state.uri.toString()),
+
       redirect: (context, state) {
         final location = state.matchedLocation;
         final isPublic = AppRoutes.publicRoutes.contains(location);
 
+        final authState = authCubit.state;
+        final profileState = profileCubit.state;
+
         // The session exists but only to set a new password.
-        if (auth.isRecovering) {
+        if (authState.isRecovering) {
           return location == AppRoutes.resetPassword
               ? null
               : AppRoutes.resetPassword;
         }
 
-        if (!auth.isAuthenticated) {
+        if (!authState.isAuthenticated) {
           if (isPublic) return null;
           final from = Uri.encodeComponent(state.uri.toString());
           return '${AppRoutes.login}?from=$from';
@@ -74,7 +94,8 @@ class AppRouter {
           return from == null ? AppRoutes.feed : Uri.decodeComponent(from);
         }
 
-        if (location == AppRoutes.admin && !profile.isAdmin) {
+        // Admin gatekeeping mapped directly to the ProfileState
+        if (location == AppRoutes.admin && !profileState.isAdmin) {
           return AppRoutes.feed;
         }
 
@@ -111,8 +132,6 @@ class AppRouter {
         ),
 
         // ── Tabbed shell ──
-        // Each branch keeps its own navigation stack, so switching tabs does
-        // not reset scroll position or lose a pushed detail page.
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               AppShell(navigationShell: navigationShell),
@@ -133,15 +152,6 @@ class AppRouter {
                   path: AppRoutes.articles,
                   name: RouteNames.articles,
                   builder: (context, state) => const ArticlesPage(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: AppRoutes.live,
-                  name: RouteNames.live,
-                  builder: (context, state) => const LivePage(),
                 ),
               ],
             ),

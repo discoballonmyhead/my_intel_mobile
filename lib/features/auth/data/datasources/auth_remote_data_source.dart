@@ -11,15 +11,14 @@ abstract interface class AuthRemoteDataSource {
   Stream<AuthStatus> get authStatusChanges;
   AuthUserModel? get currentUser;
 
-  Future<AuthUserModel> signIn({required String email, required String password});
-
+  Future<AuthUserModel> signIn(
+      {required String email, required String password});
   Future<SignUpResult> signUp({
     required String email,
     required String password,
     required String username,
     required UserRole role,
   });
-
   Future<void> signOut();
   Future<void> sendPasswordReset(String email);
   Future<void> updatePassword(String newPassword);
@@ -30,9 +29,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   AuthRemoteDataSourceImpl(this._service);
 
   final SupabaseService _service;
-
-  /// Deep-link target for password recovery. Configure the matching scheme in
-  /// AndroidManifest.xml / Info.plist and in the Supabase redirect allow-list.
   static const String _recoveryRedirect = 'io.mint.app://reset-password';
 
   @override
@@ -85,8 +81,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required UserRole role,
   }) async {
     try {
-      // `identity.handle_new_user()` reads username and role out of this
-      // metadata to create the profiles row — no client-side insert needed.
       final response = await _service.auth.signUp(
         email: email,
         password: password,
@@ -114,10 +108,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<void> sendPasswordReset(String email) async {
     try {
-      await _service.auth.resetPasswordForEmail(
-        email,
-        redirectTo: _recoveryRedirect,
-      );
+      await _service.auth
+          .resetPasswordForEmail(email, redirectTo: _recoveryRedirect);
     } on sb.AuthException catch (e) {
       throw ex.AuthException(e.message, code: e.statusCode);
     }

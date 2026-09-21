@@ -25,11 +25,11 @@ const List<NavDestination> shellDestinations = [
     icon: Icons.newspaper_outlined,
     selectedIcon: Icons.newspaper_rounded,
   ),
-  NavDestination(
-    label: 'Live',
-    icon: Icons.podcasts_outlined,
-    selectedIcon: Icons.podcasts_rounded,
-  ),
+  // NavDestination(
+  //   label: 'Live',
+  //   icon: Icons.podcasts_outlined,
+  //   selectedIcon: Icons.podcasts_rounded,
+  // ),
   NavDestination(
     label: 'Reels',
     icon: Icons.movie_outlined,

@@ -1,243 +1,289 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/constants/db_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/network/supabase_service.dart';
 import '../models/profile_model.dart';
+import 'dart:developer' as dev;
 
 abstract interface class ProfileRemoteDataSource {
   Future<ProfileModel> getProfile(String userId);
   Future<ProfileModel> getProfileByUsername(String username);
   Future<ProfileModel> updateProfile(String userId, {String? username});
-
   Future<({int followers, int following, bool isFollowing})> getFollowStats(
-    String targetUserId,
-  );
+      String targetUserId);
   Future<bool> isFollowing(String targetUserId);
   Future<void> follow(String targetUserId);
   Future<void> unfollow(String targetUserId);
   Future<List<String>> getFollowedUserIds();
-
   Future<List<ProfileModel>> searchProfiles(String query, {int limit});
-
   Future<void> submitOsintApplication(Map<String, dynamic> payload);
   Future<OsintApplicationModel?> getMyApplication();
   Future<List<OsintApplicationModel>> getAllApplications();
   Future<void> setApplicationStatus(int applicationId, String status);
-
   Future<void> awardAuraPoints(String userId, int points);
-
-  /// Shared helper: resolve a batch of author ids into profiles.
-  /// `content.posts.author_id` points at `identity.profiles`, and PostgREST
-  /// cannot embed across schemas, so every feature that shows an author calls
-  /// through here and merges the result client-side.
   Future<Map<String, ProfileModel>> profilesByIds(Iterable<String?> ids);
 }
 
 class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   ProfileRemoteDataSourceImpl(this._service);
-
   final SupabaseService _service;
 
-  String get _requireUserId {
-    final id = _service.currentUserId;
-    if (id == null) throw const ex.AuthException('You must be signed in.');
-    return id;
-  }
+  static const _logName = 'ProfileRemoteDataSource';
 
   @override
   Future<ProfileModel> getProfile(String userId) async {
+    dev.log('getProfile called with userId: $userId', name: _logName);
     try {
-      final row = await _service.identity
-          .from(DbTables.profiles)
-          .select(ProfileModel.columns)
-          .eq('id', userId)
-          .maybeSingle();
-      if (row == null) throw const ex.NotFoundException('Profile not found.');
-      return ProfileModel.fromJson(row);
+      final response = await _service
+          .rpc('profile_get_by_id', params: {'p_user_id': userId});
+      final rows = response as List<dynamic>? ?? [];
+
+      if (rows.isEmpty) {
+        dev.log('Profile not found for userId: $userId', name: _logName);
+        throw const ex.NotFoundException('Profile not found.');
+      }
+
+      dev.log('getProfile success for userId: $userId', name: _logName);
+      return ProfileModel.fromJson(rows.first as Map<String, dynamic>);
     } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getProfile', error: e, name: _logName);
       throw ex.ServerException(e.message, code: e.code);
     }
   }
 
   @override
   Future<ProfileModel> getProfileByUsername(String username) async {
+    dev.log('getProfileByUsername called with username: $username',
+        name: _logName);
     try {
-      final row = await _service.identity
-          .from(DbTables.profiles)
-          .select(ProfileModel.columns)
-          .eq('username', username)
-          .maybeSingle();
-      if (row == null) throw const ex.NotFoundException('No such channel.');
-      return ProfileModel.fromJson(row);
+      final response = await _service
+          .rpc('profile_get_by_username', params: {'p_username': username});
+      final rows = response as List<dynamic>? ?? [];
+
+      if (rows.isEmpty) {
+        dev.log('Profile not found for username: $username', name: _logName);
+        throw const ex.NotFoundException('No such channel.');
+      }
+
+      dev.log('getProfileByUsername success for username: $username',
+          name: _logName);
+      return ProfileModel.fromJson(rows.first as Map<String, dynamic>);
     } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getProfileByUsername',
+          error: e, name: _logName);
       throw ex.ServerException(e.message, code: e.code);
     }
   }
 
   @override
   Future<ProfileModel> updateProfile(String userId, {String? username}) async {
+    dev.log('updateProfile called for userId: $userId, username: $username',
+        name: _logName);
     try {
-      final payload = <String, dynamic>{
-        if (username != null) 'username': username,
-      };
-      final row = await _service.identity
-          .from(DbTables.profiles)
-          .update(payload)
-          .eq('id', userId)
-          .select(ProfileModel.columns)
-          .single();
-      return ProfileModel.fromJson(row);
+      final response = await _service.rpc('profile_update', params: {
+        'p_user_id': userId,
+        'p_username': username,
+      });
+      final rows = response as List<dynamic>? ?? [];
+
+      if (rows.isEmpty) {
+        throw const ex.ServerException('Failed to update profile.');
+      }
+
+      dev.log('updateProfile success for userId: $userId', name: _logName);
+      return ProfileModel.fromJson(rows.first as Map<String, dynamic>);
     } on PostgrestException catch (e) {
-      // 23505 is a unique-violation: the username is taken.
+      dev.log('PostgrestException in updateProfile', error: e, name: _logName);
       if (e.code == '23505') {
         throw const ex.ServerException('That username is already taken.');
       }
       if (e.code == '42501') {
-        throw const ex.PermissionException('You can only edit your own profile.');
+        throw const ex.PermissionException(
+            'You can only edit your own profile.');
       }
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
-
-  @override
-  Future<({int followers, int following, bool isFollowing})> getFollowStats(
-    String targetUserId,
-  ) async {
-    try {
-      final followersFuture = _service.identity
-          .from(DbTables.follows)
-          .select('id')
-          .eq('following_id', targetUserId)
-          .count(CountOption.exact);
-
-      final followingFuture = _service.identity
-          .from(DbTables.follows)
-          .select('id')
-          .eq('follower_id', targetUserId)
-          .count(CountOption.exact);
-
-      final results = await Future.wait([followersFuture, followingFuture]);
-      final following = await isFollowing(targetUserId);
-
-      return (
-        followers: results[0].count,
-        following: results[1].count,
-        isFollowing: following,
-      );
-    } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
-
-  @override
-  Future<bool> isFollowing(String targetUserId) async {
-    final me = _service.currentUserId;
-    if (me == null) return false;
-    final row = await _service.identity
-        .from(DbTables.follows)
-        .select('id')
-        .eq('follower_id', me)
-        .eq('following_id', targetUserId)
-        .maybeSingle();
-    return row != null;
-  }
-
-  @override
-  Future<void> follow(String targetUserId) async {
-    try {
-      await _service.identity.from(DbTables.follows).insert({
-        'follower_id': _requireUserId,
-        'following_id': targetUserId,
-      });
-    } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
-
-  @override
-  Future<void> unfollow(String targetUserId) async {
-    try {
-      await _service.identity
-          .from(DbTables.follows)
-          .delete()
-          .eq('follower_id', _requireUserId)
-          .eq('following_id', targetUserId);
-    } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
-
-  @override
-  Future<List<String>> getFollowedUserIds() async {
-    final me = _service.currentUserId;
-    if (me == null) return const [];
-    final rows = await _service.identity
-        .from(DbTables.follows)
-        .select('following_id')
-        .eq('follower_id', me);
-    return rows
-        .map((r) => r['following_id'] as String?)
-        .whereType<String>()
-        .toList();
-  }
-
-  @override
-  Future<List<ProfileModel>> searchProfiles(String query, {int limit = 10}) async {
-    final rows = await _service.identity
-        .from(DbTables.profiles)
-        .select(ProfileModel.columns)
-        .ilike('username', '%$query%')
-        .limit(limit);
-    return rows.map(ProfileModel.fromJson).toList();
-  }
-
-  @override
-  Future<void> submitOsintApplication(Map<String, dynamic> payload) async {
-    try {
-      await _service.identity.from(DbTables.osintApplications).insert({
-        ...payload,
-        'user_id': _requireUserId,
-        'status': 'pending',
-      });
-    } on PostgrestException catch (e) {
       throw ex.ServerException(e.message, code: e.code);
     }
   }
 
   @override
   Future<OsintApplicationModel?> getMyApplication() async {
-    final me = _service.currentUserId;
-    if (me == null) return null;
-    final row = await _service.identity
-        .from(DbTables.osintApplications)
-        .select()
-        .eq('user_id', me)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    return row == null ? null : OsintApplicationModel.fromJson(row);
+    dev.log('getMyApplication called', name: _logName);
+    try {
+      final response = await _service.rpc('auth_get_my_osint_application');
+      final rows = response as List<dynamic>? ?? [];
+
+      if (rows.isEmpty) {
+        dev.log('getMyApplication returned null', name: _logName);
+        return null;
+      }
+
+      dev.log('getMyApplication success', name: _logName);
+      return OsintApplicationModel.fromJson(rows.first as Map<String, dynamic>);
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getMyApplication',
+          error: e, name: _logName);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<({int followers, int following, bool isFollowing})> getFollowStats(
+      String targetUserId) async {
+    dev.log('getFollowStats called for targetUserId: $targetUserId',
+        name: _logName);
+    try {
+      final res = await _service
+          .rpc('profile_get_stats', params: {'p_profile_id': targetUserId});
+      final map = res as List<dynamic>;
+      final data = map.first as Map<String, dynamic>;
+      dev.log('getFollowStats success: ${data.toString()}', name: _logName);
+      return (
+        followers: data['followers'] as int? ?? 0,
+        following: data['following'] as int? ?? 0,
+        isFollowing: data['is_following'] as bool? ?? false,
+      );
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getFollowStats', error: e, name: _logName);
+      throw ex.ServerException(e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<bool> isFollowing(String targetUserId) async {
+    dev.log('isFollowing called for targetUserId: $targetUserId',
+        name: _logName);
+    try {
+      final res = await _service.rpc('social_is_following',
+          params: {'p_target_user_id': targetUserId});
+      dev.log('isFollowing result: $res', name: _logName);
+      return res as bool? ?? false;
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in isFollowing', error: e, name: _logName);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> follow(String targetUserId) async {
+    dev.log('follow called for targetUserId: $targetUserId', name: _logName);
+    try {
+      await _service.rpc('social_toggle_follow',
+          params: {'p_target_user_id': targetUserId});
+      dev.log('follow toggle executed successfully', name: _logName);
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in follow', error: e, name: _logName);
+      throw ex.ServerException(e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<void> unfollow(String targetUserId) async {
+    dev.log('unfollow called for targetUserId: $targetUserId', name: _logName);
+    try {
+      await _service.rpc('social_toggle_follow',
+          params: {'p_target_user_id': targetUserId});
+      dev.log('unfollow toggle executed successfully', name: _logName);
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in unfollow', error: e, name: _logName);
+      throw ex.ServerException(e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<List<String>> getFollowedUserIds() async {
+    dev.log('getFollowedUserIds called', name: _logName);
+    try {
+      final res =
+          await _service.rpc<List<dynamic>>('social_get_followed_user_ids');
+      final ids = res?.map((e) => e as String).toList() ?? [];
+      dev.log('getFollowedUserIds returned ${ids.length} ids', name: _logName);
+      return ids;
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getFollowedUserIds',
+          error: e, name: _logName);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<ProfileModel>> searchProfiles(String query,
+      {int limit = 10}) async {
+    dev.log('searchProfiles called with query: "$query", limit: $limit',
+        name: _logName);
+    try {
+      final rows =
+          await _service.rpc<List<dynamic>>('search_profiles_query', params: {
+        'p_query': query,
+        'p_limit': limit,
+      });
+      final profiles = List<Map<String, dynamic>>.from(rows ?? [])
+          .map(ProfileModel.fromJson)
+          .toList();
+      dev.log('searchProfiles returned ${profiles.length} results',
+          name: _logName);
+      return profiles;
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in searchProfiles', error: e, name: _logName);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> submitOsintApplication(Map<String, dynamic> payload) async {
+    dev.log(
+        'submitOsintApplication called with payload keys: ${payload.keys.join(',')}',
+        name: _logName);
+    try {
+      await _service.rpc('auth_apply_osint', params: {
+        'p_channel_name': payload['channel_name'],
+        'p_handle': payload['handle'],
+        'p_portfolio': payload['portfolio'],
+        'p_why': payload['why'],
+      });
+      dev.log('submitOsintApplication success', name: _logName);
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in submitOsintApplication',
+          error: e, name: _logName);
+      throw ex.ServerException(e.message, code: e.code);
+    }
   }
 
   @override
   Future<List<OsintApplicationModel>> getAllApplications() async {
-    final rows = await _service.identity
-        .from(DbTables.osintApplications)
-        .select()
-        .order('created_at', ascending: false);
-    return rows.map(OsintApplicationModel.fromJson).toList();
+    dev.log('getAllApplications called', name: _logName);
+    try {
+      final rows =
+          await _service.rpc<List<dynamic>>('auth_get_all_osint_applications');
+      final apps = List<Map<String, dynamic>>.from(rows ?? [])
+          .map(OsintApplicationModel.fromJson)
+          .toList();
+      dev.log('getAllApplications returned ${apps.length} applications',
+          name: _logName);
+      return apps;
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getAllApplications',
+          error: e, name: _logName);
+      rethrow;
+    }
   }
 
   @override
   Future<void> setApplicationStatus(int applicationId, String status) async {
+    dev.log(
+        'setApplicationStatus called for id: $applicationId to status: $status',
+        name: _logName);
     try {
-      await _service.identity
-          .from(DbTables.osintApplications)
-          .update({'status': status})
-          .eq('id', applicationId);
+      await _service.rpc('auth_update_osint_application_status', params: {
+        'p_app_id': applicationId,
+        'p_status': status,
+      });
+      dev.log('setApplicationStatus success', name: _logName);
     } on PostgrestException catch (e) {
+      dev.log('PostgrestException in setApplicationStatus',
+          error: e, name: _logName);
       if (e.code == '42501') {
-        throw const ex.PermissionException('Only admins can review applications.');
+        throw const ex.PermissionException(
+            'Only admins can review applications.');
       }
       throw ex.ServerException(e.message, code: e.code);
     }
@@ -245,22 +291,42 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
 
   @override
   Future<void> awardAuraPoints(String userId, int points) async {
-    await _service.rpc<void>(
-      DbRpc.upsertAuraPoints,
-      params: {'p_user_id': userId, 'p_points': points},
-    );
+    dev.log('awardAuraPoints called for userId: $userId, points: $points',
+        name: _logName);
+    try {
+      await _service.rpc<void>('gamification_upsert_aura',
+          params: {'p_user_id': userId, 'p_points': points});
+      dev.log('awardAuraPoints success', name: _logName);
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in awardAuraPoints',
+          error: e, name: _logName);
+      rethrow;
+    }
   }
 
   @override
   Future<Map<String, ProfileModel>> profilesByIds(Iterable<String?> ids) async {
     final unique = ids.whereType<String>().toSet().toList();
+    dev.log('profilesByIds called for ${unique.length} unique ids',
+        name: _logName);
+
     if (unique.isEmpty) return const {};
-    final rows = await _service.identity
-        .from(DbTables.profiles)
-        .select(ProfileModel.columns)
-        .inFilter('id', unique);
-    return {
-      for (final row in rows) row['id'] as String: ProfileModel.fromJson(row),
-    };
+
+    try {
+      final rows = await _service
+          .rpc<List<dynamic>>('profile_get_by_ids', params: {'p_ids': unique});
+
+      final result = {
+        for (final row in List<Map<String, dynamic>>.from(rows ?? []))
+          row['id'] as String: ProfileModel.fromJson(row),
+      };
+
+      dev.log('profilesByIds success, returned ${result.length} profiles',
+          name: _logName);
+      return result;
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in profilesByIds', error: e, name: _logName);
+      rethrow;
+    }
   }
 }

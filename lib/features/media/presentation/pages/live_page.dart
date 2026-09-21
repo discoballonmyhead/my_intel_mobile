@@ -8,7 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/auth_cubit.dart';
 import '../../domain/entities/video.dart';
 import '../providers/media_provider.dart';
 
@@ -61,7 +61,8 @@ class _LivePageState extends State<LivePage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MediaProvider>();
-    final myId = context.watch<AuthProvider>().user?.id;
+    // Fixed: Read from AuthCubit state instead of AuthProvider
+    final myId = context.watch<AuthCubit>().state.user?.id;
 
     return Scaffold(
       appBar: AppBar(title: const Text('LIVE')),
@@ -141,7 +142,8 @@ class _StreamTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(stream.title, style: Theme.of(context).textTheme.titleSmall),
+                Text(stream.title,
+                    style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 2),
                 Text(
                   '@${stream.host?.username ?? 'unknown'} · '

@@ -117,7 +117,8 @@ class _ChannelPageState extends State<ChannelPage> {
                                   radius: 24,
                                   backgroundColor: palette.surface2,
                                   child: Text(
-                                    profile.username.characters.first.toUpperCase(),
+                                    profile.username.characters.first
+                                        .toUpperCase(),
                                     style: AppTypography.mono(
                                       size: 17,
                                       color: palette.accent,
@@ -127,12 +128,14 @@ class _ChannelPageState extends State<ChannelPage> {
                                 const SizedBox(width: AppSpacing.md),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         profile.username,
-                                        style:
-                                            Theme.of(context).textTheme.titleMedium,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
                                       ),
                                       const SizedBox(height: AppSpacing.xs),
                                       RoleBadge(role: profile.role),
@@ -201,7 +204,8 @@ class _ChannelPageState extends State<ChannelPage> {
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
                                     p.body,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
                                   ),
                                 ],
                               ),

@@ -12,30 +12,24 @@ abstract interface class PostRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchPosts({int limit});
   Future<Map<String, dynamic>?> fetchPost(int postId);
   Future<List<Map<String, dynamic>>> fetchPostsByIds(List<int> ids);
-  Future<List<Map<String, dynamic>>> fetchPostsByAuthor(String authorId, {int limit});
+  Future<List<Map<String, dynamic>>> fetchPostsByAuthor(String authorId,
+      {int limit});
   Future<List<RepostRow>> fetchRecentReposts({int limit});
 
-  /// Ids of the posts the current user has liked / saved / reposted.
   Future<Set<int>> likedPostIds();
   Future<Set<int>> savedPostIds();
   Future<Set<int>> repostedPostIds();
   Future<List<int>> savedPostIdsOrdered();
 
   Future<Map<String, dynamic>> insertPost(Map<String, dynamic> payload);
-
   Future<void> like(int postId);
   Future<void> unlike(int postId);
   Future<void> save(int postId);
   Future<void> unsave(int postId);
   Future<void> repost(int postId, {String? quote});
   Future<void> undoRepost(int postId);
-
-  /// The counter columns are updated from the client because there is no
-  /// database trigger maintaining them.
   Future<void> setCounter(int postId, String column, int value);
-
   Future<String> uploadMedia(Uint8List bytes, String path, String? contentType);
-
   Stream<Map<String, dynamic>> watchInserts();
 }
 
@@ -44,22 +38,12 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
 
   final SupabaseService _service;
 
-  String get _requireUserId {
-    final id = _service.currentUserId;
-    if (id == null) throw const ex.AuthException('You must be signed in.');
-    return id;
-  }
-
   @override
   Future<List<Map<String, dynamic>>> fetchPosts({int limit = 50}) async {
     try {
-      final rows = await _service.content
-          .from(DbTables.posts)
-          .select()
-          .eq('is_osint', false)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      return rows;
+      final res = await _service
+          .rpc<List<dynamic>>('feed_get_posts', params: {'p_limit': limit});
+      return List<Map<String, dynamic>>.from(res ?? []);
     } on PostgrestException catch (e) {
       throw ex.ServerException(e.message, code: e.code);
     }
@@ -68,11 +52,9 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
   @override
   Future<Map<String, dynamic>?> fetchPost(int postId) async {
     try {
-      return await _service.content
-          .from(DbTables.posts)
-          .select()
-          .eq('id', postId)
-          .maybeSingle();
+      final res =
+          await _service.rpc('feed_get_post', params: {'p_post_id': postId});
+      return res as Map<String, dynamic>?;
     } on PostgrestException catch (e) {
       throw ex.ServerException(e.message, code: e.code);
     }
@@ -81,85 +63,65 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
   @override
   Future<List<Map<String, dynamic>>> fetchPostsByIds(List<int> ids) async {
     if (ids.isEmpty) return const [];
-    final rows = await _service.content
-        .from(DbTables.posts)
-        .select()
-        .inFilter('id', ids);
-    return rows;
+    final res = await _service
+        .rpc<List<dynamic>>('feed_get_posts_by_ids', params: {'p_ids': ids});
+    return List<Map<String, dynamic>>.from(res ?? []);
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchPostsByAuthor(
-    String authorId, {
-    int limit = 20,
-  }) async {
-    final rows = await _service.content
-        .from(DbTables.posts)
-        .select()
-        .eq('author_id', authorId)
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return rows;
+  Future<List<Map<String, dynamic>>> fetchPostsByAuthor(String authorId,
+      {int limit = 20}) async {
+    final res = await _service.rpc<List<dynamic>>('feed_get_posts_by_author',
+        params: {'p_author_id': authorId, 'p_limit': limit});
+    return List<Map<String, dynamic>>.from(res ?? []);
   }
 
   @override
   Future<List<RepostRow>> fetchRecentReposts({int limit = 50}) async {
-    final rows = await _service.content
-        .from(DbTables.reposts)
-        .select()
-        .order('created_at', ascending: false)
-        .limit(limit);
+    final res = await _service.rpc<List<dynamic>>('feed_get_recent_reposts',
+        params: {'p_limit': limit});
+    final rows = List<Map<String, dynamic>>.from(res ?? []);
     return rows.map(RepostRow.fromJson).toList();
   }
 
   @override
-  Future<Set<int>> likedPostIds() => _ownPostIds(DbTables.likes);
+  Future<Set<int>> likedPostIds() async {
+    final res =
+        await _service.rpc<List<dynamic>>('engagement_get_liked_post_ids');
+    return res?.map((e) => e as int).toSet() ?? <int>{};
+  }
 
   @override
-  Future<Set<int>> savedPostIds() => _ownPostIds(DbTables.savedPosts);
+  Future<Set<int>> savedPostIds() async {
+    final res =
+        await _service.rpc<List<dynamic>>('engagement_get_saved_post_ids');
+    return res?.map((e) => e as int).toSet() ?? <int>{};
+  }
 
   @override
-  Future<Set<int>> repostedPostIds() => _ownPostIds(DbTables.reposts);
-
-  Future<Set<int>> _ownPostIds(String table) async {
-    final me = _service.currentUserId;
-    if (me == null) return <int>{};
-    final rows = await _service.content
-        .from(table)
-        .select('post_id')
-        .eq('user_id', me);
-    return rows
-        .map((r) => (r['post_id'] as num?)?.toInt())
-        .whereType<int>()
-        .toSet();
+  Future<Set<int>> repostedPostIds() async {
+    final res =
+        await _service.rpc<List<dynamic>>('engagement_get_reposted_post_ids');
+    return res?.map((e) => e as int).toSet() ?? <int>{};
   }
 
   @override
   Future<List<int>> savedPostIdsOrdered() async {
-    final rows = await _service.content
-        .from(DbTables.savedPosts)
-        .select('post_id, created_at')
-        .eq('user_id', _requireUserId)
-        .order('created_at', ascending: false);
-    return rows
-        .map((r) => (r['post_id'] as num?)?.toInt())
-        .whereType<int>()
-        .toList();
+    final res = await _service
+        .rpc<List<dynamic>>('engagement_get_saved_post_ids_ordered');
+    return res?.map((e) => e as int).toList() ?? [];
   }
 
   @override
   Future<Map<String, dynamic>> insertPost(Map<String, dynamic> payload) async {
     try {
-      return await _service.content
-          .from(DbTables.posts)
-          .insert(payload)
-          .select()
-          .single();
+      final res = await _service
+          .rpc('social_create_post', params: {'p_payload': payload});
+      return res as Map<String, dynamic>;
     } on PostgrestException catch (e) {
       if (e.code == '42501') {
         throw const ex.PermissionException(
-          'You do not have permission to publish that.',
-        );
+            'You do not have permission to publish that.');
       }
       throw ex.ServerException(e.message, code: e.code);
     }
@@ -167,75 +129,51 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
 
   @override
   Future<void> like(int postId) async {
-    await _service.content
-        .from(DbTables.likes)
-        .insert({'user_id': _requireUserId, 'post_id': postId});
+    await _service.rpc('engagement_toggle_like', params: {'p_post_id': postId});
   }
 
   @override
   Future<void> unlike(int postId) async {
-    await _service.content
-        .from(DbTables.likes)
-        .delete()
-        .eq('user_id', _requireUserId)
-        .eq('post_id', postId);
+    await _service.rpc('engagement_toggle_like', params: {'p_post_id': postId});
   }
 
   @override
   Future<void> save(int postId) async {
-    await _service.content
-        .from(DbTables.savedPosts)
-        .insert({'user_id': _requireUserId, 'post_id': postId});
+    await _service.rpc('engagement_save_post', params: {'p_post_id': postId});
   }
 
   @override
   Future<void> unsave(int postId) async {
-    await _service.content
-        .from(DbTables.savedPosts)
-        .delete()
-        .eq('user_id', _requireUserId)
-        .eq('post_id', postId);
+    await _service.rpc('engagement_unsave_post', params: {'p_post_id': postId});
   }
 
   @override
   Future<void> repost(int postId, {String? quote}) async {
-    await _service.content.from(DbTables.reposts).insert({
-      'user_id': _requireUserId,
-      'post_id': postId,
-      'quote_body': quote,
-    });
+    await _service.rpc('engagement_repost',
+        params: {'p_post_id': postId, 'p_quote': quote});
   }
 
   @override
   Future<void> undoRepost(int postId) async {
-    await _service.content
-        .from(DbTables.reposts)
-        .delete()
-        .eq('user_id', _requireUserId)
-        .eq('post_id', postId);
+    await _service.rpc('engagement_undo_repost', params: {'p_post_id': postId});
   }
 
   @override
   Future<void> setCounter(int postId, String column, int value) async {
-    await _service.content
-        .from(DbTables.posts)
-        .update({column: value})
-        .eq('id', postId);
+    await _service.rpc('engagement_update_post_counter', params: {
+      'p_post_id': postId,
+      'p_column': column,
+      'p_value': value,
+    });
   }
 
   @override
   Future<String> uploadMedia(
-    Uint8List bytes,
-    String path,
-    String? contentType,
-  ) async {
+      Uint8List bytes, String path, String? contentType) async {
     try {
       final bucket = _service.storage.from(StorageBuckets.mintMedia);
-      await bucket.uploadBinary(
-        path,
-        bytes,
-        fileOptions: FileOptions(contentType: contentType, upsert: false),
-      );
+      await bucket.uploadBinary(path, bytes,
+          fileOptions: FileOptions(contentType: contentType, upsert: false));
       return bucket.getPublicUrl(path);
     } on StorageException catch (e) {
       throw ex.ServerException(e.message, code: e.statusCode);
@@ -246,7 +184,6 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
   Stream<Map<String, dynamic>> watchInserts() {
     final controller = StreamController<Map<String, dynamic>>.broadcast();
     late final RealtimeChannel channel;
-
     controller.onListen = () {
       channel = _service.channel('content:posts')
         ..onPostgresChanges(
@@ -254,20 +191,17 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
           schema: DbSchemas.content,
           table: DbTables.posts,
           filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'is_osint',
-            value: false,
-          ),
+              type: PostgresChangeFilterType.eq,
+              column: 'is_osint',
+              value: false),
           callback: (payload) => controller.add(payload.newRecord),
         )
         ..subscribe();
     };
-
     controller.onCancel = () async {
       await _service.removeChannel(channel);
       await controller.close();
     };
-
     return controller.stream;
   }
 }
