@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/db_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/network/supabase_service.dart';
+import '../../../../core/network/rpc_runner.dart';
+import '../models/post_edit_model.dart';
 import '../models/post_model.dart';
 
 abstract interface class PostRemoteDataSource {
@@ -31,6 +33,10 @@ abstract interface class PostRemoteDataSource {
   Future<void> setCounter(int postId, String column, int value);
   Future<String> uploadMedia(Uint8List bytes, String path, String? contentType);
   Stream<Map<String, dynamic>> watchInserts();
+
+  Future<Map<String, dynamic>> editPost(int postId, String body);
+  Future<void> deletePost(int postId);
+  Future<List<PostEditModel>> fetchEditHistory(int postId);
 }
 
 class PostRemoteDataSourceImpl implements PostRemoteDataSource {
@@ -204,4 +210,26 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
     };
     return controller.stream;
   }
+
+  @override
+  Future<Map<String, dynamic>> editPost(int postId, String body) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(PostRpc.edit,
+            params: {'p_post_id': postId, 'p_content': body});
+        final row = asRow(res);
+        if (row == null) throw const ex.NotFoundException('Post not found.');
+        return row;
+      });
+
+  @override
+  Future<void> deletePost(int postId) => runRpc(() async {
+        await _service.rpc<dynamic>(PostRpc.delete, params: {'p_post_id': postId});
+      });
+
+  @override
+  Future<List<PostEditModel>> fetchEditHistory(int postId) => runRpc(() async {
+        final res = await _service.rpc<dynamic>(PostRpc.editHistory,
+            params: {'p_post_id': postId});
+        return asRows(res).map(PostEditModel.fromJson).toList();
+      });
 }

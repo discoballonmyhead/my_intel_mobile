@@ -25,6 +25,10 @@ class Post extends Equatable {
     this.liked = false,
     this.saved = false,
     this.reposted = false,
+    this.editedAt,
+    this.editCount = 0,
+    this.moderationStatus = 'visible',
+    this.deletedAt,
   });
 
   final int id;
@@ -56,10 +60,32 @@ class Post extends Equatable {
   final bool saved;
   final bool reposted;
 
+  // Edit / delete / moderation state (migration 02).
+  final DateTime? editedAt;
+  final int editCount;
+
+  /// 'visible' | 'limited' | 'under_review' | 'removed'
+  final String moderationStatus;
+  final DateTime? deletedAt;
+
+  bool get isEdited => editedAt != null;
+  bool get isDeleted => deletedAt != null;
+  bool get isRemoved => moderationStatus == 'removed';
+  bool get isUnderReview => moderationStatus == 'under_review';
+
+  /// Hidden from everyone but its author (and staff).
+  bool get isHidden => isDeleted || isRemoved;
+
+  bool isOwnedBy(String? userId) => userId != null && authorId == userId;
+
   bool get hasMedia => mediaUrl != null && mediaUrl!.isNotEmpty;
   bool get hasCoordinates => regionLat != null && regionLng != null;
 
   Post copyWith({
+    String? body,
+    DateTime? editedAt,
+    int? editCount,
+    String? moderationStatus,
     int? likes,
     int? replyCount,
     int? repostCount,
@@ -70,7 +96,7 @@ class Post extends Equatable {
   }) {
     return Post(
       id: id,
-      body: body,
+      body: body ?? this.body,
       createdAt: createdAt,
       authorId: authorId,
       author: author ?? this.author,
@@ -88,11 +114,27 @@ class Post extends Equatable {
       liked: liked ?? this.liked,
       saved: saved ?? this.saved,
       reposted: reposted ?? this.reposted,
+      editedAt: editedAt ?? this.editedAt,
+      editCount: editCount ?? this.editCount,
+      moderationStatus: moderationStatus ?? this.moderationStatus,
+      deletedAt: deletedAt,
     );
   }
 
   @override
-  List<Object?> get props => [id, likes, replyCount, repostCount, liked, saved, reposted];
+  List<Object?> get props => [
+        id,
+        body,
+        likes,
+        replyCount,
+        repostCount,
+        liked,
+        saved,
+        reposted,
+        editedAt,
+        moderationStatus,
+        deletedAt,
+      ];
 }
 
 /// The feed interleaves original posts with reposts of other people's posts.

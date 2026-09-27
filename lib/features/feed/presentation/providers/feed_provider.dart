@@ -7,6 +7,7 @@ import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/post.dart';
 import '../../domain/usecases/create_post.dart';
 import '../../domain/usecases/get_feed.dart';
+import '../../domain/usecases/manage_post.dart';
 import '../../domain/usecases/toggle_interaction.dart';
 
 enum FeedStatus { initial, loading, ready, error }
@@ -21,7 +22,11 @@ class FeedProvider extends ChangeNotifier {
     required ToggleSave toggleSave,
     required ToggleRepost toggleRepost,
     required WatchNewPosts watchNewPosts,
+    required EditPost editPost,
+    required DeletePost deletePost,
   })  : _getFeed = getFeed,
+        _editPost = editPost,
+        _deletePost = deletePost,
         _createPost = createPost,
         _toggleLike = toggleLike,
         _toggleSave = toggleSave,
@@ -34,6 +39,8 @@ class FeedProvider extends ChangeNotifier {
   final ToggleSave _toggleSave;
   final ToggleRepost _toggleRepost;
   final WatchNewPosts _watchNewPosts;
+  final EditPost _editPost;
+  final DeletePost _deletePost;
 
   StreamSubscription<Post>? _realtimeSub;
 
@@ -177,6 +184,49 @@ class FeedProvider extends ChangeNotifier {
           ),
       };
     }).toList();
+  }
+
+  /// Saves an edit by the author. Returns false with [failure] set on error.
+  Future<bool> editPost(Post post, String body) async {
+    final result = await _editPost(EditPostParams(post: post, body: body));
+    return result.fold(
+      (failure) {
+        _failure = failure;
+        notifyListeners();
+        return false;
+      },
+      (updated) {
+        _replacePost(updated);
+        notifyListeners();
+        return true;
+      },
+    );
+  }
+
+  /// Author delete. Optimistic: the post disappears immediately and comes
+  /// back if the server refuses.
+  Future<bool> deletePost(Post post) async {
+    final previous = _items;
+    removeLocally(post.id);
+
+    final result = await _deletePost(post.id);
+    final failure = result.failureOrNull;
+    if (failure != null) {
+      _items = previous;
+      _failure = failure;
+      notifyListeners();
+      return false;
+    }
+    return true;
+  }
+
+  /// Drops every card showing [postId] (original and reposts). Also used after
+  /// a moderator removes a post from the report screen.
+  void removeLocally(int postId) {
+    final next = _items.where((item) => item.post.id != postId).toList();
+    if (next.length == _items.length) return;
+    _items = next;
+    notifyListeners();
   }
 
   void clearError() {

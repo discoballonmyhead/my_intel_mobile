@@ -7,6 +7,7 @@ import '../../../../core/network/supabase_service.dart';
 import '../../../../core/utils/result.dart';
 import '../../../profile/data/datasources/profile_remote_data_source.dart';
 import '../../domain/entities/post.dart';
+import '../../domain/entities/post_edit.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../datasources/post_remote_data_source.dart';
 import '../models/post_model.dart';
@@ -29,12 +30,15 @@ class PostRepositoryImpl implements PostRepository {
     int limit = AppConstants.feedPageSize,
   }) {
     return guard(() async {
-      final rows = await _remote.fetchPosts(limit: limit);
+      final rows =
+          (await _remote.fetchPosts(limit: limit)).where(_isVisible).toList();
       final repostRows = await _remote.fetchRecentReposts(limit: limit);
 
       // Posts referenced by reposts may not be in the first page of the feed.
       final repostedIds = repostRows.map((r) => r.postId).toSet().toList();
-      final repostedRows = await _remote.fetchPostsByIds(repostedIds);
+      final repostedRows = (await _remote.fetchPostsByIds(repostedIds))
+          .where(_isVisible)
+          .toList();
       final repostedById = {
         for (final row in repostedRows) (row['id'] as num).toInt(): row,
       };
@@ -104,7 +108,9 @@ class PostRepositoryImpl implements PostRepository {
   @override
   Future<Result<List<Post>>> getPostsByAuthor(String authorId, {int limit = 20}) {
     return guard(() async {
-      final rows = await _remote.fetchPostsByAuthor(authorId, limit: limit);
+      final rows = (await _remote.fetchPostsByAuthor(authorId, limit: limit))
+          .where(_isVisible)
+          .toList();
       final profiles = await _profiles.profilesByIds([authorId]);
       return rows
           .map((row) => PostModel.fromJson(row, author: profiles[authorId]))
@@ -117,7 +123,8 @@ class PostRepositoryImpl implements PostRepository {
     return guard(() async {
       final ids = await _remote.savedPostIdsOrdered();
       if (ids.isEmpty) return <Post>[];
-      final rows = await _remote.fetchPostsByIds(ids);
+      final rows =
+          (await _remote.fetchPostsByIds(ids)).where(_isVisible).toList();
       final byId = {for (final r in rows) (r['id'] as num).toInt(): r};
       final profiles =
           await _profiles.profilesByIds(rows.map((r) => r['author_id'] as String?));
@@ -246,4 +253,37 @@ class PostRepositoryImpl implements PostRepository {
       yield PostModel.fromJson(row, author: profiles[authorId]);
     }
   }
+
+  /// Belt and braces: the feed RPCs should already exclude deleted / removed
+  /// posts (see migration 02), but older functions may not, so the client
+  /// drops them too. Authors still see their own removed posts.
+  bool _isVisible(Map<String, dynamic> row) {
+    if (row['deleted_at'] != null) return false;
+    if (row['moderation_status'] == 'removed') {
+      return row['author_id'] == _service.currentUserId;
+    }
+    return true;
+  }
+
+  @override
+  Future<Result<Post>> editPost(Post post, String body) {
+    return guard(() async {
+      final row = await _remote.editPost(post.id, body);
+      final updated = PostModel.fromJson(row, author: post.author);
+      // Keep the viewer's interaction state; the RPC row doesn't carry it.
+      return updated.copyWith(
+        liked: post.liked,
+        saved: post.saved,
+        reposted: post.reposted,
+      );
+    });
+  }
+
+  @override
+  Future<Result<void>> deletePost(int postId) =>
+      guard(() => _remote.deletePost(postId));
+
+  @override
+  Future<Result<List<PostEdit>>> getEditHistory(int postId) =>
+      guard(() => _remote.fetchEditHistory(postId));
 }

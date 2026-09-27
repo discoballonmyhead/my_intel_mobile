@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/responsive/responsive_provider.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../messaging/presentation/cubits/inbox_cubit.dart';
 import '../widgets/nav_destinations.dart';
 
 /// Hosts the persistent navigation around the tabbed branches.
@@ -28,6 +30,17 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final responsive = context.watch<ResponsiveProvider>();
+    final unread =
+        context.select<InboxCubit, int>((cubit) => cubit.state.unreadTotal);
+
+    Widget icon(NavDestination d, {required bool selected}) {
+      final child = Icon(selected ? d.selectedIcon : d.icon);
+      if (!d.showsUnreadBadge || unread == 0) return child;
+      return Badge(
+        label: Text(unread > 99 ? '99+' : '$unread'),
+        child: child,
+      );
+    }
 
     if (responsive.useBottomNav) {
       return Scaffold(
@@ -37,8 +50,8 @@ class AppShell extends StatelessWidget {
           onDestinationSelected: _goToBranch,
           destinations: shellDestinations
               .map((d) => NavigationDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
+                    icon: icon(d, selected: false),
+                    selectedIcon: icon(d, selected: true),
                     label: d.label,
                   ))
               .toList(),
@@ -60,8 +73,8 @@ class AppShell extends StatelessWidget {
             leading: const _RailHeader(),
             destinations: shellDestinations
                 .map((d) => NavigationRailDestination(
-                      icon: Icon(d.icon),
-                      selectedIcon: Icon(d.selectedIcon),
+                      icon: icon(d, selected: false),
+                      selectedIcon: icon(d, selected: true),
                       label: Text(d.label),
                     ))
                 .toList(),

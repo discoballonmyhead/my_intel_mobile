@@ -49,7 +49,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final provider = context.watch<ModerationProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ADMIN')),
+      appBar: AppBar(title: const Text('CLAIMS')),
       body: RefreshIndicator(
         onRefresh: provider.loadOpenClaims,
         child: provider.loading

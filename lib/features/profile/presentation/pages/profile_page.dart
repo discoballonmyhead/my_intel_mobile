@@ -10,6 +10,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/role_badge.dart';
+import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -87,12 +88,25 @@ class ProfilePage extends StatelessWidget {
                           label: const Text('APPLY AS ANALYST'),
                         ),
                       const SizedBox(height: AppSpacing.md),
-                      if (state.isAdmin)
-                        OutlinedButton.icon(
-                          onPressed: () => context.push(AppRoutes.admin),
-                          icon: const Icon(Icons.shield_outlined, size: 16),
-                          label: const Text('ADMIN DASHBOARD'),
-                        ),
+                      BlocBuilder<AccessCubit, AccessState>(
+                        builder: (context, access) {
+                          final isStaff = access.isStaff || state.isAdmin;
+                          if (!isStaff) return const SizedBox.shrink();
+                          return OutlinedButton.icon(
+                            onPressed: () => context.push(AppRoutes.admin),
+                            icon: const Icon(Icons.shield_outlined, size: 16),
+                            label: Text(access.isAdmin || state.isAdmin
+                                ? 'ADMIN CONSOLE'
+                                : 'MODERATION'),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      OutlinedButton.icon(
+                        onPressed: () => context.push(AppRoutes.myReports),
+                        icon: const Icon(Icons.flag_outlined, size: 16),
+                        label: const Text('MY REPORTS'),
+                      ),
                       const SizedBox(height: AppSpacing.xxl),
                       OutlinedButton(
                         onPressed: () async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -8,10 +9,20 @@ import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../account/presentation/cubits/access_cubit.dart';
+import '../../../auth/presentation/providers/auth_cubit.dart';
+import '../../../moderation/domain/entities/report.dart';
+import '../../../moderation/presentation/widgets/mod_actions.dart';
+import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../domain/entities/post.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/composer_sheet.dart';
+import '../widgets/edit_post_sheet.dart';
+import '../widgets/post_actions_sheet.dart';
 import '../widgets/post_card.dart';
+import '../widgets/post_edit_history_sheet.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
@@ -45,6 +56,62 @@ class _FeedPageState extends State<FeedPage> {
         content: Text(ok ? 'Posted.' : provider.failure?.message ?? 'Post failed.'),
       ),
     );
+  }
+
+  Future<void> _openActions(Post post) async {
+    final action = await PostActionsSheet.show(
+      context,
+      post: post,
+      myUserId: context.read<AuthCubit>().state.user?.id,
+      isStaff: context.read<AccessCubit>().state.isStaff,
+    );
+    if (action == null || !mounted) return;
+    final provider = context.read<FeedProvider>();
+
+    switch (action) {
+      case PostAction.edit:
+        {
+          final body = await EditPostSheet.show(context, post);
+          if (body == null || !mounted) return;
+          final ok = await provider.editPost(post, body);
+          if (!mounted) return;
+          AppDialogs.snack(context,
+              ok ? 'Post updated.' : provider.failure?.message ?? 'Edit failed.');
+        }
+      case PostAction.delete:
+        {
+          final confirmed = await AppDialogs.confirm(
+            context,
+            title: 'Delete post?',
+            message: 'It disappears from every feed. This cannot be undone.',
+            confirmLabel: 'DELETE',
+            destructive: true,
+          );
+          if (!confirmed || !mounted) return;
+          final ok = await provider.deletePost(post);
+          if (!mounted) return;
+          AppDialogs.snack(context,
+              ok ? 'Post deleted.' : provider.failure?.message ?? 'Delete failed.');
+        }
+      case PostAction.history:
+        await PostEditHistorySheet.show(context, post);
+      case PostAction.report:
+        await ReportSheet.show(
+          context,
+          targetType: ReportTargetType.post,
+          targetId: '${post.id}',
+        );
+      case PostAction.modRemove:
+        {
+          final removed = await ModActions.removePost(context, post.id);
+          if (removed && mounted) provider.removeLocally(post.id);
+        }
+      case PostAction.viewAuthor:
+        {
+          final username = post.author?.username;
+          if (username != null) context.push(AppRoutes.channelFor(username));
+        }
+    }
   }
 
   @override
@@ -100,6 +167,7 @@ class _FeedPageState extends State<FeedPage> {
                     onRepost: () => provider.toggleRepost(item.post),
                     onAuthorTap: (username) =>
                         context.push(AppRoutes.channelFor(username)),
+                    onMore: () => _openActions(item.post),
                   );
                 },
               ),

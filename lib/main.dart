@@ -17,7 +17,9 @@ import 'core/responsive/responsive_scope.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'features/account/presentation/cubits/access_cubit.dart';
 import 'features/auth/presentation/providers/auth_cubit.dart';
+import 'features/messaging/presentation/cubits/inbox_cubit.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,19 +56,51 @@ class AppProviders extends StatelessWidget {
         providers: [
           BlocProvider.value(value: sl<AuthCubit>()),
           BlocProvider.value(value: sl<ProfileCubit>()),
+          BlocProvider.value(value: sl<AccessCubit>()),
+          BlocProvider.value(value: sl<InboxCubit>()),
         ],
         // ── THE PROPER WAY TO SYNC CUBITS IN FLUTTER_BLOC ──
-        child: BlocListener<AuthCubit, AuthState>(
-          // Only trigger the listener if the actual user ID changes
-          listenWhen: (previous, current) =>
-              previous.user?.id != current.user?.id,
-          listener: (context, state) {
-            // Tell the ProfileCubit to load the new user (or clear if null)
-            context.read<ProfileCubit>().syncWithUser(state.user?.id);
-          },
-          child: child, // This is your MyApp()
-        ),
+        // Every session-scoped cubit follows the signed-in user id: load on
+        // sign-in, clear (and drop realtime channels) on sign-out.
+        child: _SessionSync(child: child),
       ),
+    );
+  }
+}
+
+class _SessionSync extends StatefulWidget {
+  const _SessionSync({required this.child});
+  final Widget child;
+
+  @override
+  State<_SessionSync> createState() => _SessionSyncState();
+}
+
+class _SessionSyncState extends State<_SessionSync> {
+  @override
+  void initState() {
+    super.initState();
+    // BlocListener only fires on changes, so seed the session-scoped cubits
+    // with the user restored at startup. (ProfileCubit seeds itself from
+    // `initialUserId` in its constructor.)
+    final userId = context.read<AuthCubit>().state.user?.id;
+    context.read<AccessCubit>().syncWithUser(userId);
+    context.read<InboxCubit>().syncWithUser(userId);
+  }
+
+  void _sync(String? userId) {
+    context.read<ProfileCubit>().syncWithUser(userId);
+    context.read<AccessCubit>().syncWithUser(userId);
+    context.read<InboxCubit>().syncWithUser(userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AuthCubit, AuthState>(
+      // Only trigger the listener if the actual user ID changes
+      listenWhen: (previous, current) => previous.user?.id != current.user?.id,
+      listener: (context, state) => _sync(state.user?.id),
+      child: widget.child,
     );
   }
 }
@@ -89,6 +123,7 @@ class _MyAppState extends State<MyApp> {
     _router = AppRouter.build(
       authCubit: sl<AuthCubit>(),
       profileCubit: sl<ProfileCubit>(),
+      accessCubit: sl<AccessCubit>(),
     );
   }
 

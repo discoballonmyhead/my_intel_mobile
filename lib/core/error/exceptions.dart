@@ -28,6 +28,12 @@ class PermissionException implements Exception {
   final String message;
 }
 
+/// Input the server rejected as invalid (Postgres errcode 22023).
+class ValidationException implements Exception {
+  const ValidationException(this.message);
+  final String message;
+}
+
 class CacheException implements Exception {
   const CacheException(this.message);
   final String message;

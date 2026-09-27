@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mint/features/profile/presentation/providers/profile_cubit.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/responsive/responsive_provider.dart';
 import '../../../../core/responsive/responsive_scope.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -62,6 +64,24 @@ class SettingsPage extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Role'),
                   subtitle: Text(profile?.role.label ?? '—'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('My reports'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.myReports),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'DANGER ZONE'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.delete_forever_outlined,
+                      color: palette.accent2),
+                  title: Text('Delete account',
+                      style: TextStyle(color: palette.accent2)),
+                  subtitle: const Text('Permanently erase your account'),
+                  onTap: () => context.push(AppRoutes.deleteAccount),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _SectionLabel(label: 'DIAGNOSTICS'),

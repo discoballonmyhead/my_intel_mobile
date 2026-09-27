@@ -23,6 +23,10 @@ class PostModel extends Post {
     super.liked,
     super.saved,
     super.reposted,
+    super.editedAt,
+    super.editCount,
+    super.moderationStatus,
+    super.deletedAt,
   });
 
   factory PostModel.fromJson(
@@ -52,6 +56,10 @@ class PostModel extends Post {
       liked: liked,
       saved: saved,
       reposted: reposted,
+      editedAt: parseTimestamp(json['edited_at']),
+      editCount: (json['edit_count'] as num?)?.toInt() ?? 0,
+      moderationStatus: (json['moderation_status'] as String?) ?? 'visible',
+      deletedAt: parseTimestamp(json['deleted_at']),
     );
   }
 

@@ -17,6 +17,7 @@ class PostCard extends StatelessWidget {
     this.onRepost,
     this.onTap,
     this.onAuthorTap,
+    this.onMore,
     super.key,
   });
 
@@ -26,6 +27,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onRepost;
   final VoidCallback? onTap;
   final ValueChanged<String>? onAuthorTap;
+
+  /// Opens the ⋯ menu (edit, delete, report, moderate).
+  final VoidCallback? onMore;
 
   Post get post => item.post;
 
@@ -60,7 +64,24 @@ class PostCard extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
-            _Header(post: post, item: item, onAuthorTap: onAuthorTap),
+            _Header(
+              post: post,
+              item: item,
+              onAuthorTap: onAuthorTap,
+              onMore: onMore,
+            ),
+            if (post.isUnderReview || post.isRemoved) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                post.isRemoved
+                    ? 'REMOVED BY MODERATORS · ONLY YOU CAN SEE THIS'
+                    : 'UNDER REVIEW',
+                style: AppTypography.mono(
+                  size: 9,
+                  color: post.isRemoved ? palette.accent2 : palette.warn,
+                ),
+              ),
+            ],
             if (item case RepostedPost(:final quote) when quote != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(quote, style: theme.textTheme.bodyMedium),
@@ -107,11 +128,17 @@ class PostCard extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.post, required this.item, this.onAuthorTap});
+  const _Header({
+    required this.post,
+    required this.item,
+    this.onAuthorTap,
+    this.onMore,
+  });
 
   final Post post;
   final FeedItem item;
   final ValueChanged<String>? onAuthorTap;
+  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +179,9 @@ class _Header extends StatelessWidget {
                   ],
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    post.createdAt.timeAgo,
+                    post.isEdited
+                        ? '${post.createdAt.timeAgo} · edited'
+                        : post.createdAt.timeAgo,
                     style: AppTypography.mono(size: 9, color: palette.muted),
                   ),
                 ],
@@ -166,6 +195,13 @@ class _Header extends StatelessWidget {
           ),
         ),
         if (post.tag != null) TagChip(label: post.tag!),
+        if (onMore != null)
+          IconButton(
+            tooltip: 'More',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.more_horiz_rounded, size: 18, color: palette.muted),
+            onPressed: onMore,
+          ),
       ],
     );
   }

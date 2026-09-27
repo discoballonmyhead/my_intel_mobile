@@ -1,5 +1,6 @@
 import '../../../../core/utils/result.dart';
 import '../entities/post.dart';
+import '../entities/post_edit.dart';
 
 abstract interface class PostRepository {
   /// The general (non-OSINT) feed, with reposts merged in and sorted by
@@ -31,6 +32,15 @@ abstract interface class PostRepository {
     required String fileExtension,
     String? contentType,
   });
+
+  /// Author-only. Returns the post with its new body and edit metadata.
+  Future<Result<Post>> editPost(Post post, String body);
+
+  /// Author-only soft delete (`post_delete`).
+  Future<Result<void>> deletePost(int postId);
+
+  /// Previous versions, newest first. Author or staff only.
+  Future<Result<List<PostEdit>>> getEditHistory(int postId);
 
   /// Realtime inserts on `content.posts` where `is_osint = false`.
   Stream<Post> watchNewPosts();

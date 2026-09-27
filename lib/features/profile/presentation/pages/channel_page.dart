@@ -1,218 +1,233 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/responsive/responsive_scope.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_x.dart';
+import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/role_badge.dart';
-import '../../../feed/domain/entities/post.dart';
-import '../../../feed/domain/usecases/get_feed.dart';
+import '../../../account/presentation/cubits/access_cubit.dart';
+import '../../../auth/presentation/providers/auth_cubit.dart';
+import '../../../messaging/presentation/cubits/inbox_cubit.dart';
+import '../../../moderation/domain/entities/report.dart';
+import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../domain/entities/profile.dart';
-import '../../domain/usecases/get_profile.dart';
-import '../../domain/usecases/toggle_follow.dart';
+import '../providers/transient_channel_cubit.dart';
 
-/// Another user's channel, addressed by username. Composes the use cases it
-/// needs directly instead of holding a long-lived provider — the screen is
-/// transient and its state does not outlive it.
-class ChannelPage extends StatefulWidget {
+/// Another user's channel, addressed by username. State lives in a
+/// route-scoped [ChannelCubit] provided by the router.
+class ChannelPage extends StatelessWidget {
   const ChannelPage({required this.username, super.key});
 
   final String username;
 
-  @override
-  State<ChannelPage> createState() => _ChannelPageState();
-}
-
-class _ChannelPageState extends State<ChannelPage> {
-  Profile? _profile;
-  FollowStats _stats = const FollowStats();
-  List<Post> _posts = const [];
-  Failure? _failure;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-
-    final result = await context.read<GetProfileByUsername>()(widget.username);
-    if (!mounted) return;
-
-    final profile = result.valueOrNull;
-    if (profile == null) {
-      setState(() {
-        _failure = result.failureOrNull;
-        _loading = false;
-      });
-      return;
+  Future<void> _message(BuildContext context, Profile profile) async {
+    final inbox = context.read<InboxCubit>();
+    final id = await inbox.openDirect(profile.id);
+    if (!context.mounted) return;
+    if (id != null) {
+      context.push(AppRoutes.chatFor(id));
+    } else {
+      AppDialogs.snack(
+          context, inbox.state.failure?.message ?? 'Could not open a chat.');
+      inbox.clearFailure();
     }
-
-    final stats = await context.read<GetFollowStats>()(profile.id);
-    final posts = await context.read<GetPostsByAuthor>()(profile.id);
-    if (!mounted) return;
-
-    setState(() {
-      _profile = profile;
-      _stats = stats.valueOrNull ?? const FollowStats();
-      _posts = posts.valueOrNull ?? const [];
-      _loading = false;
-    });
-  }
-
-  Future<void> _toggleFollow() async {
-    final profile = _profile;
-    if (profile == null) return;
-
-    // Optimistic, reverted if the write fails.
-    final previous = _stats;
-    setState(() {
-      _stats = _stats.copyWith(
-        isFollowing: !_stats.isFollowing,
-        followers: _stats.isFollowing
-            ? (_stats.followers - 1).clamp(0, 1 << 30)
-            : _stats.followers + 1,
-      );
-    });
-
-    final result = await context.read<ToggleFollow>()(profile.id);
-    if (!mounted) return;
-    setState(() => _stats = result.valueOrNull ?? previous);
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final profile = _profile;
+    final myId = context.select<AuthCubit, String?>((c) => c.state.user?.id);
+    final isStaff = context.select<AccessCubit, bool>((c) => c.state.isStaff);
 
-    return Scaffold(
-      appBar: AppBar(title: Text('@${widget.username}'.toUpperCase())),
-      body: _loading
-          ? const AppLoader()
-          : profile == null
-              ? AppErrorView(
-                  failure: _failure ?? const NotFoundFailure(),
-                  onRetry: _load,
-                )
-              : ContentColumn(
-                  padded: false,
-                  child: ListView(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+    return BlocBuilder<ChannelCubit, ChannelState>(
+      builder: (context, state) {
+        final cubit = context.read<ChannelCubit>();
+        final profile = state.profile;
+        final isMe = profile != null && profile.id == myId;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('@$username'.toUpperCase()),
+            actions: [
+              if (profile != null && !isMe)
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'report':
+                        ReportSheet.show(
+                          context,
+                          targetType: ReportTargetType.profile,
+                          targetId: profile.id,
+                        );
+                      case 'admin':
+                        context.push(AppRoutes.adminUserFor(profile.id));
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                        value: 'report', child: Text('Report profile')),
+                    if (isStaff)
+                      const PopupMenuItem(
+                          value: 'admin', child: Text('Open in admin')),
+                  ],
+                ),
+            ],
+          ),
+          body: state.isLoading
+              ? const AppLoader()
+              : profile == null
+                  ? AppErrorView(
+                      failure: state.failure ?? const NotFoundFailure(),
+                      onRetry: () => cubit.load(username),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () => cubit.load(username),
+                      child: ContentColumn(
+                        padded: false,
+                        child: ListView(
                           children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: palette.surface2,
-                                  child: Text(
-                                    profile.username.characters.first
-                                        .toUpperCase(),
-                                    style: AppTypography.mono(
-                                      size: 17,
-                                      color: palette.accent,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        profile.username,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      RoleBadge(role: profile.role),
-                                    ],
-                                  ),
-                                ),
-                                FilledButton(
-                                  onPressed: _toggleFollow,
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size(104, 38),
-                                    backgroundColor: _stats.isFollowing
-                                        ? palette.surface2
-                                        : palette.accent,
-                                    foregroundColor: _stats.isFollowing
-                                        ? palette.muted
-                                        : null,
-                                  ),
-                                  child: Text(
-                                    _stats.isFollowing ? 'FOLLOWING' : 'FOLLOW',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-                            Row(
-                              children: [
-                                _Metric(
-                                  label: 'FOLLOWERS',
-                                  value: _stats.followers,
-                                ),
-                                _Metric(
-                                  label: 'FOLLOWING',
-                                  value: _stats.following,
-                                ),
-                                if (profile.isAnalyst)
-                                  _Metric(label: 'CRED', value: profile.score),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Divider(color: palette.border, height: 1),
-                      if (_posts.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(AppSpacing.xxl),
-                          child: AppEmptyView(message: 'No posts yet'),
-                        )
-                      else
-                        ..._posts.map((p) => Container(
+                            Padding(
                               padding: const EdgeInsets.all(AppSpacing.lg),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: palette.border),
-                                ),
-                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    p.createdAt.timeAgo,
-                                    style: AppTypography.mono(
-                                      size: 9,
-                                      color: palette.muted,
-                                    ),
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 24,
+                                        backgroundColor: palette.surface2,
+                                        child: Text(
+                                          profile.username.characters.first
+                                              .toUpperCase(),
+                                          style: AppTypography.mono(
+                                            size: 17,
+                                            color: palette.accent,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.md),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              profile.username,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
+                                            ),
+                                            const SizedBox(
+                                                height: AppSpacing.xs),
+                                            RoleBadge(role: profile.role),
+                                          ],
+                                        ),
+                                      ),
+                                      if (!isMe) ...[
+                                        IconButton.outlined(
+                                          tooltip: 'Message',
+                                          onPressed: () =>
+                                              _message(context, profile),
+                                          icon: const Icon(
+                                              Icons.mail_outline_rounded,
+                                              size: 18),
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        FilledButton(
+                                          onPressed: cubit.toggleFollow,
+                                          style: FilledButton.styleFrom(
+                                            minimumSize: const Size(104, 38),
+                                            backgroundColor:
+                                                state.stats.isFollowing
+                                                    ? palette.surface2
+                                                    : palette.accent,
+                                            foregroundColor:
+                                                state.stats.isFollowing
+                                                    ? palette.muted
+                                                    : null,
+                                          ),
+                                          child: Text(
+                                            state.stats.isFollowing
+                                                ? 'FOLLOWING'
+                                                : 'FOLLOW',
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  const SizedBox(height: AppSpacing.xs),
-                                  Text(
-                                    p.body,
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium,
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Row(
+                                    children: [
+                                      _Metric(
+                                        label: 'FOLLOWERS',
+                                        value: state.stats.followers,
+                                      ),
+                                      _Metric(
+                                        label: 'FOLLOWING',
+                                        value: state.stats.following,
+                                      ),
+                                      if (profile.isAnalyst)
+                                        _Metric(
+                                            label: 'CRED',
+                                            value: profile.score),
+                                    ],
                                   ),
                                 ],
                               ),
-                            )),
-                    ],
-                  ),
-                ),
+                            ),
+                            Divider(color: palette.border, height: 1),
+                            if (state.posts.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(AppSpacing.xxl),
+                                child: AppEmptyView(message: 'No posts yet'),
+                              )
+                            else
+                              ...state.posts.map((p) => Container(
+                                    padding:
+                                        const EdgeInsets.all(AppSpacing.lg),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom:
+                                            BorderSide(color: palette.border),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.isEdited
+                                              ? '${p.createdAt.timeAgo} · edited'
+                                              : p.createdAt.timeAgo,
+                                          style: AppTypography.mono(
+                                            size: 9,
+                                            color: palette.muted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: AppSpacing.xs),
+                                        Text(
+                                          p.body,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                          ],
+                        ),
+                      ),
+                    ),
+        );
+      },
     );
   }
 }

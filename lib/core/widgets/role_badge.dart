@@ -14,6 +14,7 @@ class RoleBadge extends StatelessWidget {
   IconData get _icon => switch (role) {
         UserRole.osint => Icons.verified_outlined,
         UserRole.reporter => Icons.edit_outlined,
+        UserRole.moderator => Icons.gavel_outlined,
         UserRole.admin => Icons.shield_outlined,
         UserRole.public => Icons.circle_outlined,
       };
@@ -21,6 +22,7 @@ class RoleBadge extends StatelessWidget {
   Color _color(BuildContext context) => switch (role) {
         UserRole.osint => context.palette.verified,
         UserRole.reporter => context.palette.accent,
+        UserRole.moderator => context.palette.warn,
         UserRole.admin => const Color(0xFFFF9F43),
         UserRole.public => context.palette.muted,
       };

@@ -7,11 +7,15 @@ class NavDestination {
     required this.label,
     required this.icon,
     required this.selectedIcon,
+    this.showsUnreadBadge = false,
   });
 
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+
+  /// Wraps the icon in the inbox unread-count badge.
+  final bool showsUnreadBadge;
 }
 
 const List<NavDestination> shellDestinations = [
@@ -34,6 +38,12 @@ const List<NavDestination> shellDestinations = [
     label: 'Reels',
     icon: Icons.movie_outlined,
     selectedIcon: Icons.movie_rounded,
+  ),
+  NavDestination(
+    label: 'Messages',
+    icon: Icons.forum_outlined,
+    selectedIcon: Icons.forum_rounded,
+    showsUnreadBadge: true,
   ),
   NavDestination(
     label: 'Profile',

@@ -7,6 +7,7 @@ enum UserRole {
   public('public', 'PUBLIC', 1),
   reporter('reporter', 'REPORTER', 1),
   osint('osint', 'OSINT ANALYST', 3),
+  moderator('moderator', 'MODERATOR', 3),
   admin('admin', 'ADMIN', 10);
 
   const UserRole(this.value, this.label, this.noteWeight);
@@ -20,10 +21,12 @@ enum UserRole {
   static UserRole fromValue(String? value) => switch (value) {
         'admin' => UserRole.admin,
         'osint' => UserRole.osint,
+        'moderator' => UserRole.moderator,
         'reporter' => UserRole.reporter,
         _ => UserRole.public,
       };
 
   bool get canPublishStories => this == osint || this == admin;
   bool get isAdmin => this == admin;
+  bool get isStaff => this == admin || this == moderator;
 }

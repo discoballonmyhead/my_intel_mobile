@@ -12,6 +12,8 @@ Future<Result<T>> guard<T>(Future<T> Function() action) async {
     return Ok(await action());
   } on PermissionException catch (e) {
     return Err(PermissionFailure(e.message));
+  } on ValidationException catch (e) {
+    return Err(ValidationFailure(e.message));
   } on NotFoundException catch (e) {
     return Err(NotFoundFailure(e.message));
   } on AuthException catch (e) {

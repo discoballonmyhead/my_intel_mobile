@@ -52,6 +52,11 @@ import '../../features/stories/presentation/providers/story_provider.dart';
 import '../network/supabase_service.dart';
 import '../responsive/responsive_provider.dart';
 import '../theme/theme_provider.dart';
+import 'modules/account_module.dart';
+import 'modules/admin_module.dart';
+import 'modules/messaging_module.dart';
+import 'modules/posts_module.dart';
+import 'modules/reports_module.dart';
 
 final sl = GetIt.instance; // sl stands for Service Locator
 
@@ -177,6 +182,8 @@ class Injection {
           toggleSave: sl(),
           toggleRepost: sl(),
           watchNewPosts: sl(),
+          editPost: sl(),
+          deletePost: sl(),
         ));
     sl.registerLazySingleton<StoryProvider>(() => StoryProvider(
           getStories: sl(),
@@ -212,5 +219,12 @@ class Injection {
           getPostsByAuthor: sl(),
           toggleFollow: sl(),
         ));
+
+    // ── New feature modules ──
+    registerAccountModule(sl);
+    registerPostsModule(sl);
+    registerMessagingModule(sl);
+    registerReportsModule(sl);
+    registerAdminModule(sl);
   }
 }
