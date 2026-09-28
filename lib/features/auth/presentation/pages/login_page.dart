@@ -104,6 +104,8 @@ class _LoginPageState extends State<LoginPage> {
                   context.read<AuthCubit>().clearError();
                   context.push(AppRoutes.forgotPassword);
                 },
+                // No side padding, so the text lines up with the field edge.
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
                 child: const Text('Forgot password?'),
               ),
             ),
