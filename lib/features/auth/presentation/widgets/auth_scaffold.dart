@@ -29,29 +29,44 @@ class AuthScaffold extends StatelessWidget {
       body: SafeArea(
         child: ContentColumn(
           maxWidth: 420,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-            children: [
-              Text(
-                'MINT',
-                style: AppTypography.mono(
-                  size: 22,
-                  weight: FontWeight.w600,
-                  color: palette.accent,
-                  letterSpacing: 6,
+          // Centred vertically on tall screens; still scrolls when the
+          // keyboard is up or the content is taller than the screen.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - AppSpacing.xxl * 2,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'MINT',
+                      style: AppTypography.mono(
+                        size: 22,
+                        weight: FontWeight.w600,
+                        color: palette.accent,
+                        letterSpacing: 6,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    Text(title,
+                        style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(subtitle,
+                        style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: AppSpacing.xl),
+                    ...children,
+                    if (footer != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      footer!,
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.xxl),
-              Text(title, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: AppSpacing.sm),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: AppSpacing.xl),
-              ...children,
-              if (footer != null) ...[
-                const SizedBox(height: AppSpacing.xl),
-                footer!,
-              ],
-            ],
+            ),
           ),
         ),
       ),
