@@ -49,6 +49,10 @@ class FeedProvider extends ChangeNotifier {
   Failure? _failure;
   bool _posting = false;
 
+  /// Bumped on every account change so a load started for the previous user
+  /// can't land after the reset.
+  int _session = 0;
+
   List<FeedItem> get items => _items;
   FeedStatus get status => _status;
   Failure? get failure => _failure;
@@ -56,12 +60,14 @@ class FeedProvider extends ChangeNotifier {
   bool get isEmpty => _items.isEmpty && _status == FeedStatus.ready;
 
   Future<void> load({bool silent = false}) async {
+    final session = _session;
     if (!silent) {
       _status = FeedStatus.loading;
       notifyListeners();
     }
 
     final result = await _getFeed(const NoParams());
+    if (session != _session) return;
     result.fold(
       (failure) {
         _failure = failure;
@@ -77,6 +83,19 @@ class FeedProvider extends ChangeNotifier {
   }
 
   Future<void> refresh() => load(silent: true);
+
+  /// Called when the signed-in account changes. Liked / saved / reposted
+  /// flags are per user, so the old feed must never be shown to the next one.
+  Future<void> syncWithUser(String? userId) async {
+    final wasLoaded = _status != FeedStatus.initial;
+    _session++;
+    _items = const [];
+    _failure = null;
+    _posting = false;
+    _status = FeedStatus.initial;
+    notifyListeners();
+    if (userId != null && wasLoaded) await load();
+  }
 
   /// Subscribes to `content.posts` inserts. Safe to call more than once.
   void listenForNewPosts() {
