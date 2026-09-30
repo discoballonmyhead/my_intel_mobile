@@ -33,7 +33,11 @@ class RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _color(context);
-    if (compact) return Icon(_icon, size: 12, color: color);
+    if (compact) {
+      // General Public shows just the username, no icon.
+      if (role == UserRole.public) return const SizedBox.shrink();
+      return Icon(_icon, size: 12, color: color);
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(

@@ -121,7 +121,7 @@ class _FeedPageState extends State<FeedPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GENERAL'),
+        title: const Text('FEED'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search_rounded),
