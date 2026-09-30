@@ -34,17 +34,35 @@ class MediaProvider extends ChangeNotifier {
   MediaStatus _streamStatus = MediaStatus.initial;
   Failure? _failure;
 
+  /// Bumped on every account change; see [syncWithUser].
+  int _session = 0;
+
   List<Video> get videos => _videos;
   List<LiveStream> get streams => _streams;
   MediaStatus get videoStatus => _videoStatus;
   MediaStatus get streamStatus => _streamStatus;
   Failure? get failure => _failure;
 
+  /// Called when the signed-in account changes: "liked by me" is per user.
+  Future<void> syncWithUser(String? userId) async {
+    final wasLoaded = _videoStatus != MediaStatus.initial;
+    _session++;
+    _videos = const [];
+    _streams = const [];
+    _videoStatus = MediaStatus.initial;
+    _streamStatus = MediaStatus.initial;
+    _failure = null;
+    notifyListeners();
+    if (userId != null && wasLoaded) await loadVideos();
+  }
+
   Future<void> loadVideos({String? type = 'reel'}) async {
+    final session = _session;
     _videoStatus = MediaStatus.loading;
     notifyListeners();
 
     final result = await _getVideos(type);
+    if (session != _session) return;
     result.fold(
       (failure) {
         _failure = failure;
