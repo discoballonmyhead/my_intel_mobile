@@ -174,6 +174,9 @@ class Injection {
           updateProfile: sl(),
           applyForOsint: sl(),
           getMyApplication: sl(),
+          getFollowStats: sl(),
+          getPostsByAuthor: sl(),
+          getSavedPosts: sl(),
         ));
     sl.registerLazySingleton<FeedProvider>(() => FeedProvider(
           getFeed: sl(),

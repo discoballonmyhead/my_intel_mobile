@@ -19,7 +19,10 @@ class RoleBadge extends StatelessWidget {
         UserRole.public => Icons.circle_outlined,
       };
 
-  Color _color(BuildContext context) => switch (role) {
+  Color _color(BuildContext context) => colorOf(context, role);
+
+  /// The accent used for [role] wherever it is shown, badge or not.
+  static Color colorOf(BuildContext context, UserRole role) => switch (role) {
         UserRole.osint => context.palette.verified,
         UserRole.reporter => context.palette.accent,
         UserRole.moderator => context.palette.warn,
