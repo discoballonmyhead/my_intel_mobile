@@ -81,6 +81,16 @@ class SettingsPage extends StatelessWidget {
                   onTap: () => context.read<AuthCubit>().signOut(),
                 ),
                 const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'SUPPORT'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.feedback_outlined),
+                  title: const Text('Send feedback'),
+                  subtitle: const Text('Report a bug or suggest an idea'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.feedback),
+                ),
+                const SizedBox(height: AppSpacing.xl),
                 _SectionLabel(label: 'DANGER ZONE'),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
