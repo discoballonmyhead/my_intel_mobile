@@ -1,69 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
-import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_typography.dart';
 
-/// Shared chrome for the four auth screens: a centred column that stays
-/// comfortable on a phone and does not stretch on a tablet.
+/// Shared chrome for the auth screens: a dotted paper background, an animated
+/// [stage] that takes whatever height the [form] leaves free, and the form
+/// pinned to the bottom. When the keyboard opens or the form grows, the stage
+/// shrinks first and the whole column scrolls once there is no room left.
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
-    required this.title,
-    required this.subtitle,
-    required this.children,
-    this.footer,
+    required this.stage,
+    required this.form,
+    this.topBar,
     super.key,
   });
 
-  final String title;
-  final String subtitle;
-  final List<Widget> children;
-  final Widget? footer;
+  final Widget stage;
+  final Widget form;
+  final Widget? topBar;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
 
     return Scaffold(
-      body: SafeArea(
-        child: ContentColumn(
-          maxWidth: 420,
-          // Centred vertically on tall screens; still scrolls when the
-          // keyboard is up or the content is taller than the screen.
+      backgroundColor: palette.surface2,
+      body: CustomPaint(
+        painter: _DotGridPainter(Theme.of(context).colorScheme.onSurface),
+        child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - AppSpacing.xxl * 2,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'MINT',
-                      style: AppTypography.mono(
-                        size: 22,
-                        weight: FontWeight.w600,
-                        color: palette.accent,
-                        letterSpacing: 6,
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (topBar != null) topBar!,
+                          Expanded(child: _StageSlot(child: stage)),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                                22, AppSpacing.sm, 22, AppSpacing.xl),
+                            child: form,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xxl),
-                    Text(title,
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(subtitle,
-                        style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: AppSpacing.xl),
-                    ...children,
-                    if (footer != null) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      footer!,
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -72,6 +60,46 @@ class AuthScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Reports a small fixed intrinsic height for the stage, so IntrinsicHeight
+/// sizes the column by the form and the stage only gets the space left over
+/// (instead of forcing a scroll to fit its full radar).
+class _StageSlot extends SingleChildRenderObjectWidget {
+  const _StageSlot({required super.child});
+
+  static const double minHeight = 180;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderStageSlot();
+}
+
+class _RenderStageSlot extends RenderProxyBox {
+  @override
+  double computeMinIntrinsicHeight(double width) => _StageSlot.minHeight;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _StageSlot.minHeight;
+}
+
+class _DotGridPainter extends CustomPainter {
+  _DotGridPainter(this.ink);
+
+  final Color ink;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = ink.withValues(alpha: 0.08);
+    const step = 18.0;
+    for (var y = step / 2; y < size.height; y += step) {
+      for (var x = step / 2; x < size.width; x += step) {
+        canvas.drawCircle(Offset(x, y), 1, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DotGridPainter old) => old.ink != ink;
 }
 
 /// Inline error banner used by the auth forms.
@@ -85,7 +113,7 @@ class AuthErrorBanner extends StatelessWidget {
     final palette = context.palette;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: palette.accent2.withValues(alpha: 0.08),
