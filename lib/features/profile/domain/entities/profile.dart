@@ -92,7 +92,11 @@ class OsintApplication extends Equatable {
     this.why,
     this.status = 'pending',
     this.createdAt,
+    this.reviewedAt,
   });
+
+  /// How long after a rejection before the user may apply again.
+  static const Duration reapplyCooldown = Duration(days: 30);
 
   final int id;
   final String channelName;
@@ -103,8 +107,25 @@ class OsintApplication extends Equatable {
   final String status;
   final DateTime? createdAt;
 
+  /// When staff decided on it. Null if the backend doesn't send it.
+  final DateTime? reviewedAt;
+
   bool get isPending => status == 'pending';
+  bool get isRejected => status == 'rejected';
+
+  /// For a rejected application: when a new one may be sent. Counted from the
+  /// review date, or from submission when the review date is unknown.
+  DateTime? get reapplyAvailableAt {
+    if (!isRejected) return null;
+    final from = reviewedAt ?? createdAt;
+    return from?.add(reapplyCooldown);
+  }
+
+  bool canReapply({DateTime? now}) {
+    final at = reapplyAvailableAt;
+    return at == null || !(now ?? DateTime.now().toUtc()).isBefore(at);
+  }
 
   @override
-  List<Object?> get props => [id, channelName, handle, status];
+  List<Object?> get props => [id, channelName, handle, status, reviewedAt];
 }

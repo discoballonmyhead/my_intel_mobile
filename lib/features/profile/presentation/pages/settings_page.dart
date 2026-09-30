@@ -11,6 +11,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../auth/presentation/providers/auth_cubit.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -71,6 +72,13 @@ class SettingsPage extends StatelessWidget {
                   title: const Text('My reports'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => context.push(AppRoutes.myReports),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.logout_rounded),
+                  title: const Text('Sign out'),
+                  // The router's auth redirect takes over once signed out.
+                  onTap: () => context.read<AuthCubit>().signOut(),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _SectionLabel(label: 'DANGER ZONE'),
