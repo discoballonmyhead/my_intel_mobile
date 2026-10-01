@@ -32,6 +32,18 @@ class SearchProvider extends ChangeNotifier {
   Failure? get failure => _failure;
   bool get hasQuery => _query.trim().length >= 2;
 
+  /// Called when the signed-in account changes: drops the last query.
+  void syncWithUser(String? userId) {
+    _timer?.cancel();
+    _results = const SearchResults();
+    _query = '';
+    _tag = null;
+    _window = TimeWindow.all;
+    _searching = false;
+    _failure = null;
+    notifyListeners();
+  }
+
   void onQueryChanged(String value) {
     _query = value;
     notifyListeners();

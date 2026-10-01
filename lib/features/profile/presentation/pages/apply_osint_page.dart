@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:mint/features/profile/presentation/providers/profile_cubit.dart';
 import 'package:provider/provider.dart';
 
@@ -78,6 +79,12 @@ class _ApplyOsintPageState extends State<ApplyOsintPage> {
                 if (existing != null && existing.isPending)
                   Text(
                     'Your application for "${existing.channelName}" is pending review.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  )
+                else if (existing != null && !existing.canReapply())
+                  Text(
+                    'Your last application wasn\u2019t approved. You can apply '
+                    'again from ${DateFormat('d MMM yyyy').format(existing.reapplyAvailableAt!.toLocal())}.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   )
                 else ...[

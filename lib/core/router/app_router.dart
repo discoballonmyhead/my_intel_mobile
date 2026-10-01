@@ -20,8 +20,8 @@ import '../../features/admin/presentation/pages/audit_log_page.dart';
 import '../../features/admin/presentation/pages/osint_applications_page.dart';
 import '../../features/auth/presentation/cubits/change_password_cubit.dart';
 import '../../features/auth/presentation/pages/change_password_page.dart';
-import '../../features/auth/presentation/pages/login_page.dart';
-import '../../features/auth/presentation/pages/register_page.dart';
+
+import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
 import '../../features/auth/presentation/providers/auth_cubit.dart';
@@ -115,12 +115,12 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.login,
           name: RouteNames.login,
-          builder: (context, state) => const LoginPage(),
+          builder: (context, state) => const AuthPage(),
         ),
         GoRoute(
           path: AppRoutes.register,
           name: RouteNames.register,
-          builder: (context, state) => const RegisterPage(),
+          builder: (context, state) => const AuthPage(startInSignUp: true),
         ),
         GoRoute(
           path: AppRoutes.verifyEmail,
@@ -450,7 +450,9 @@ class AppRouter {
 
     // The session exists but only to set a new password.
     if (auth.isRecovering) {
-      return location == AppRoutes.resetPassword ? null : AppRoutes.resetPassword;
+      return location == AppRoutes.resetPassword
+          ? null
+          : AppRoutes.resetPassword;
     }
 
     if (!auth.isAuthenticated) {

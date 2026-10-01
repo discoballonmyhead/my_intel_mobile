@@ -56,15 +56,21 @@ class PostCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (item case RepostedPost(:final reposter)) ...[
-              Row(
-                children: [
-                  Icon(Icons.repeat_rounded, size: 12, color: palette.muted),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    '${reposter?.username ?? 'someone'} reposted',
-                    style: AppTypography.mono(size: 9, color: palette.muted),
-                  ),
-                ],
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: reposter == null
+                    ? null
+                    : () => onAuthorTap?.call(reposter.username),
+                child: Row(
+                  children: [
+                    Icon(Icons.repeat_rounded, size: 12, color: palette.muted),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '${reposter?.username ?? 'someone'} reposted',
+                      style: AppTypography.mono(size: 9, color: palette.muted),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
@@ -155,53 +161,66 @@ class _Header extends StatelessWidget {
     final palette = context.palette;
     final author = post.author;
 
+    // Avatar AND name open the profile. Previously only the 32px avatar did,
+    // so tapping the username fell through to the card's tap (post detail).
+    final openProfile = author == null || onAuthorTap == null
+        ? null
+        : () => onAuthorTap!.call(author.username);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
-          onTap: author == null ? null : () => onAuthorTap?.call(author.username),
-          child: CircleAvatar(
-            radius: 16,
-            backgroundColor: palette.surface2,
-            child: Text(
-              (author?.username ?? '?').characters.first.toUpperCase(),
-              style: AppTypography.mono(size: 12, color: palette.accent),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      author?.username ?? 'unknown',
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: openProfile,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: palette.surface2,
+                  child: Text(
+                    (author?.username ?? '?').characters.first.toUpperCase(),
+                    style: AppTypography.mono(size: 12, color: palette.accent),
                   ),
-                  if (author != null) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    RoleBadge(role: author.role, compact: true),
-                  ],
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    post.isEdited
-                        ? '${post.createdAt.timeAgo} · edited'
-                        : post.createdAt.timeAgo,
-                    style: AppTypography.mono(size: 9, color: palette.muted),
-                  ),
-                ],
-              ),
-              if (author != null && author.isAnalyst)
-                Text(
-                  'CRED ${author.score}',
-                  style: AppTypography.mono(size: 9, color: palette.muted),
                 ),
-            ],
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              author?.username ?? 'unknown',
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (author != null) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            RoleBadge(role: author.role, compact: true),
+                          ],
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            post.isEdited
+                                ? '${post.createdAt.timeAgo} · edited'
+                                : post.createdAt.timeAgo,
+                            style: AppTypography.mono(size: 9, color: palette.muted),
+                          ),
+                        ],
+                      ),
+                      if (author != null && author.isAnalyst)
+                        Text(
+                          'CRED ${author.score}',
+                          style: AppTypography.mono(size: 9, color: palette.muted),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         if (post.tag != null) TagChip(label: post.tag!),

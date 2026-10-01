@@ -19,7 +19,10 @@ class RoleBadge extends StatelessWidget {
         UserRole.public => Icons.circle_outlined,
       };
 
-  Color _color(BuildContext context) => switch (role) {
+  Color _color(BuildContext context) => colorOf(context, role);
+
+  /// The accent used for [role] wherever it is shown, badge or not.
+  static Color colorOf(BuildContext context, UserRole role) => switch (role) {
         UserRole.osint => context.palette.verified,
         UserRole.reporter => context.palette.accent,
         UserRole.moderator => context.palette.warn,
@@ -30,7 +33,11 @@ class RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _color(context);
-    if (compact) return Icon(_icon, size: 12, color: color);
+    if (compact) {
+      // General Public shows just the username, no icon.
+      if (role == UserRole.public) return const SizedBox.shrink();
+      return Icon(_icon, size: 12, color: color);
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(

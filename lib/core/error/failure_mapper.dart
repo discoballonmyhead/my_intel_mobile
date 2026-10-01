@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 import 'dart:io';
 
 import 'exceptions.dart';
@@ -24,7 +25,10 @@ Future<Result<T>> guard<T>(Future<T> Function() action) async {
     return const Err(NetworkFailure());
   } on TimeoutException {
     return const Err(NetworkFailure('The request timed out.'));
-  } catch (_) {
+  } catch (e, stack) {
+    // Anything unmapped (a bad cast, a raw PostgrestException…) still shows
+    // the generic message, but is logged so the cause is visible in the console.
+    dev.log('Unexpected error: $e', name: 'guard', error: e, stackTrace: stack);
     return const Err(UnexpectedFailure());
   }
 }

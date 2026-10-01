@@ -75,7 +75,7 @@ class Injection {
       () => SupabaseService(client ?? Supabase.instance.client),
     );
     sl.registerLazySingleton<ThemeProvider>(
-      () => ThemeProvider(themeStore ?? InMemoryThemeStore())..load(),
+      () => ThemeProvider(themeStore ?? SharedPreferencesThemeStore())..load(),
     );
     sl.registerLazySingleton<ResponsiveProvider>(() => ResponsiveProvider());
 
@@ -177,6 +177,9 @@ class Injection {
           updateProfile: sl(),
           applyForOsint: sl(),
           getMyApplication: sl(),
+          getFollowStats: sl(),
+          getPostsByAuthor: sl(),
+          getSavedPosts: sl(),
         ));
     sl.registerLazySingleton<FeedProvider>(() => FeedProvider(
           getFeed: sl(),
