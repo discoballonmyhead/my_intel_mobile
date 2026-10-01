@@ -122,7 +122,7 @@ class _FeedPageState extends State<FeedPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GENERAL'),
+        title: const Text('FEED'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search_rounded),
@@ -131,6 +131,9 @@ class _FeedPageState extends State<FeedPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        // Unique per tab: all shell tabs stay mounted (indexedStack), so the
+        // default tag would collide with other tabs' FABs on every push.
+        heroTag: 'fab-feed-compose',
         onPressed: provider.posting ? null : _openComposer,
         child: provider.posting
             ? const SizedBox(

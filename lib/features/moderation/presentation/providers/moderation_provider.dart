@@ -35,6 +35,16 @@ class ModerationProvider extends ChangeNotifier {
 
   PostModeration? forPost(int postId) => _byPost[postId];
 
+  /// Called when the signed-in account changes. Open claims are staff-only,
+  /// so nothing cached for one account may carry over to the next.
+  void syncWithUser(String? userId) {
+    _byPost.clear();
+    _openClaims = const [];
+    _loading = false;
+    _failure = null;
+    notifyListeners();
+  }
+
   Future<void> loadForPost(int postId) async {
     _loading = true;
     notifyListeners();

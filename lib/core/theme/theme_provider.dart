@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Owns the light/dark/system choice. Mirrors `useTheme.jsx`: an explicit
-/// choice is remembered, otherwise the app follows the platform setting.
+/// Owns the light/dark/system choice. Defaults to Ghost (light); an explicit
+/// choice, including "follow system", is remembered across launches.
 ///
 /// Persistence is deliberately behind a small interface so swapping in
 /// SharedPreferences (or any store) does not touch the widget tree.
@@ -20,11 +21,24 @@ class InMemoryThemeStore implements ThemeStore {
   Future<void> write(String? value) async => _value = value;
 }
 
+/// Persists the choice on the device so it survives an app restart.
+class SharedPreferencesThemeStore implements ThemeStore {
+  static const _key = 'theme_mode';
+  final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
+
+  @override
+  Future<String?> read() => _prefs.getString(_key);
+
+  @override
+  Future<void> write(String? value) =>
+      value == null ? _prefs.remove(_key) : _prefs.setString(_key, value);
+}
+
 class ThemeProvider extends ChangeNotifier {
   ThemeProvider(this._store);
 
   final ThemeStore _store;
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.light;
 
   ThemeMode get mode => _mode;
   bool get followsSystem => _mode == ThemeMode.system;
@@ -40,8 +54,8 @@ class ThemeProvider extends ChangeNotifier {
     final saved = await _store.read();
     _mode = switch (saved) {
       'dark' => ThemeMode.dark,
-      'light' => ThemeMode.light,
-      _ => ThemeMode.system,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.light,
     };
     notifyListeners();
   }
@@ -53,7 +67,7 @@ class ThemeProvider extends ChangeNotifier {
     await _store.write(switch (mode) {
       ThemeMode.dark => 'dark',
       ThemeMode.light => 'light',
-      ThemeMode.system => null,
+      ThemeMode.system => 'system',
     });
   }
 

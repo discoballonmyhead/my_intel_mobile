@@ -7,6 +7,7 @@ import '../../../../core/responsive/responsive_provider.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../messaging/presentation/cubits/inbox_cubit.dart';
+import '../../../profile/presentation/providers/profile_cubit.dart';
 import '../widgets/nav_destinations.dart';
 
 /// Hosts the persistent navigation around the tabbed branches.
@@ -19,7 +20,15 @@ class AppShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  void _goToBranch(int index) {
+  void _goToBranch(BuildContext context, int index) {
+    // The Profile tab caches posts / saved / follow counts. Refresh when the
+    // user switches to it so changes made elsewhere (likes, saves, follows,
+    // edits) are reflected. The page keeps showing data while this runs.
+    if (index != navigationShell.currentIndex &&
+        index < AppRoutes.shellTabs.length &&
+        AppRoutes.shellTabs[index] == AppRoutes.profile) {
+      context.read<ProfileCubit>().refresh();
+    }
     navigationShell.goBranch(
       index,
       // Tapping the active tab returns to that branch's first route.
@@ -47,7 +56,7 @@ class AppShell extends StatelessWidget {
         body: navigationShell,
         bottomNavigationBar: NavigationBar(
           selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: _goToBranch,
+          onDestinationSelected: (i) => _goToBranch(context, i),
           destinations: shellDestinations
               .map((d) => NavigationDestination(
                     icon: icon(d, selected: false),
@@ -64,7 +73,7 @@ class AppShell extends StatelessWidget {
         children: [
           NavigationRail(
             selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: _goToBranch,
+            onDestinationSelected: (i) => _goToBranch(context, i),
             // Labels appear once there is room for a full-width rail.
             extended: responsive.isExpanded,
             labelType: responsive.isExpanded

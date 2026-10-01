@@ -1,8 +1,10 @@
+import 'dart:developer' as dev;
 import 'dart:typed_data';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/error/failure_mapper.dart';
+import '../../../../core/network/rpc_runner.dart';
 import '../../../../core/network/supabase_service.dart';
 import '../../../../core/utils/result.dart';
 import '../../../profile/data/datasources/profile_remote_data_source.dart';
@@ -68,18 +70,16 @@ class PostRepositoryImpl implements PostRepository {
       final items = <FeedItem>[
         ...rows.map((row) => OriginalPost(build(row))),
         // Skip reposts of your own post — the original already shows.
-        ...repostRows
-            .where((r) {
-              final original = repostedById[r.postId];
-              return original != null && original['author_id'] != r.userId;
-            })
-            .map((r) => RepostedPost(
-                  build(repostedById[r.postId]!),
-                  repostId: r.id,
-                  repostedAt: r.createdAt,
-                  reposter: profiles[r.userId],
-                  quote: r.quoteBody,
-                )),
+        ...repostRows.where((r) {
+          final original = repostedById[r.postId];
+          return original != null && original['author_id'] != r.userId;
+        }).map((r) => RepostedPost(
+              build(repostedById[r.postId]!),
+              repostId: r.id,
+              repostedAt: r.createdAt,
+              reposter: profiles[r.userId],
+              quote: r.quoteBody,
+            )),
       ]..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
 
       return items;
@@ -90,11 +90,28 @@ class PostRepositoryImpl implements PostRepository {
   Future<Result<Post>> getPost(int postId) {
     return guard(() async {
       final row = await _remote.fetchPost(postId);
-      if (row == null) throw const ex.NotFoundException('Post not found.');
-      final profiles = await _profiles.profilesByIds([row['author_id'] as String?]);
-      final liked = await _remote.likedPostIds();
-      final saved = await _remote.savedPostIds();
-      final reposted = await _remote.repostedPostIds();
+      if (row == null || !_isVisible(row)) {
+        throw const ex.NotFoundException('This post is no longer available.');
+      }
+      final profiles = await runRpc(
+          () => _profiles.profilesByIds([row['author_id'] as String?]));
+
+      // Viewer flags are decoration: if one lookup fails, show the post with
+      // that flag off rather than failing the whole screen.
+      Future<Set<int>> flags(Future<Set<int>> Function() load) async {
+        try {
+          return await load();
+        } catch (e) {
+          dev.log('viewer flag lookup failed: $e', name: 'PostRepository');
+          return <int>{};
+        }
+      }
+
+      final (liked, saved, reposted) = await (
+        flags(_remote.likedPostIds),
+        flags(_remote.savedPostIds),
+        flags(_remote.repostedPostIds),
+      ).wait;
       return PostModel.fromJson(
         row,
         author: profiles[row['author_id']],
@@ -106,7 +123,8 @@ class PostRepositoryImpl implements PostRepository {
   }
 
   @override
-  Future<Result<List<Post>>> getPostsByAuthor(String authorId, {int limit = 20}) {
+  Future<Result<List<Post>>> getPostsByAuthor(String authorId,
+      {int limit = 20}) {
     return guard(() async {
       final rows = (await _remote.fetchPostsByAuthor(authorId, limit: limit))
           .where(_isVisible)
@@ -126,8 +144,8 @@ class PostRepositoryImpl implements PostRepository {
       final rows =
           (await _remote.fetchPostsByIds(ids)).where(_isVisible).toList();
       final byId = {for (final r in rows) (r['id'] as num).toInt(): r};
-      final profiles =
-          await _profiles.profilesByIds(rows.map((r) => r['author_id'] as String?));
+      final profiles = await _profiles
+          .profilesByIds(rows.map((r) => r['author_id'] as String?));
       // Preserve the saved-at ordering rather than the id ordering.
       return ids
           .map((id) => byId[id])
@@ -157,8 +175,8 @@ class PostRepositoryImpl implements PostRepository {
 
       // Fall back to the first #hashtag when no tag was picked, matching the
       // web composer's behaviour.
-      final resolvedTag = tag ??
-          RegExp(r'#(\w+)').firstMatch(body)?.group(1)?.toUpperCase();
+      final resolvedTag =
+          tag ?? RegExp(r'#(\w+)').firstMatch(body)?.group(1)?.toUpperCase();
 
       final row = await _remote.insertPost(PostModel.toInsertJson(
         authorId: userId,
@@ -178,9 +196,8 @@ class PostRepositoryImpl implements PostRepository {
   Future<Result<Post>> toggleLike(Post post) {
     return guard(() async {
       final nextLiked = !post.liked;
-      final nextCount = nextLiked
-          ? post.likes + 1
-          : (post.likes - 1).clamp(0, 1 << 30);
+      final nextCount =
+          nextLiked ? post.likes + 1 : (post.likes - 1).clamp(0, 1 << 30);
 
       if (nextLiked) {
         await _remote.like(post.id);

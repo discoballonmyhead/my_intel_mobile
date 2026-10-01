@@ -42,6 +42,7 @@ class OsintApplicationModel extends OsintApplication {
     super.why,
     super.status,
     super.createdAt,
+    super.reviewedAt,
   });
 
   factory OsintApplicationModel.fromJson(Map<String, dynamic> json) {
@@ -54,6 +55,8 @@ class OsintApplicationModel extends OsintApplication {
       why: json['why'] as String?,
       status: (json['status'] as String?) ?? 'pending',
       createdAt: parseTimestamp(json['created_at']),
+      reviewedAt:
+          parseTimestamp(json['reviewed_at'] ?? json['updated_at']),
     );
   }
 }

@@ -92,6 +92,12 @@ class _SessionSyncState extends State<_SessionSync> {
     context.read<ProfileCubit>().syncWithUser(userId);
     context.read<AccessCubit>().syncWithUser(userId);
     context.read<InboxCubit>().syncWithUser(userId);
+    // Session-wide providers holding per-user state (liked / saved flags,
+    // staff-only claims, last search) must not leak into the next account.
+    sl<FeedProvider>().syncWithUser(userId);
+    sl<MediaProvider>().syncWithUser(userId);
+    sl<ModerationProvider>().syncWithUser(userId);
+    sl<SearchProvider>().syncWithUser(userId);
   }
 
   @override
