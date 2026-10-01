@@ -16,6 +16,7 @@ import '../../../auth/presentation/providers/auth_cubit.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../../comments/presentation/pages/post_detail_page.dart';
 import '../../domain/entities/post.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/composer_sheet.dart';
@@ -168,6 +169,11 @@ class _FeedPageState extends State<FeedPage> {
                     onAuthorTap: (username) =>
                         context.push(AppRoutes.channelFor(username)),
                     onMore: () => _openActions(item.post),
+                    onTap: () =>
+                        context.push(AppRoutes.postFor(item.post.id)),
+                    onComment: () => context.push(
+                        AppRoutes.postFor(item.post.id),
+                        extra: const PostDetailArgs(focusComposer: true)),
                   );
                 },
               ),

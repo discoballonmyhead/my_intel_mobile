@@ -14,13 +14,19 @@ class ChannelState extends Equatable {
     this.posts = const [],
     this.isLoading = true,
     this.failure,
+    this.followFailure,
   });
 
   final Profile? profile;
   final FollowStats stats;
   final List<Post> posts;
   final bool isLoading;
+
+  /// Loading the channel failed (full-screen error).
   final Failure? failure;
+
+  /// A follow / unfollow was rejected (snackbar, then cleared).
+  final Failure? followFailure;
 
   ChannelState copyWith({
     Profile? profile,
@@ -28,7 +34,9 @@ class ChannelState extends Equatable {
     List<Post>? posts,
     bool? isLoading,
     Failure? failure,
+    Failure? followFailure,
     bool clearFailure = false,
+    bool clearFollowFailure = false,
   }) {
     return ChannelState(
       profile: profile ?? this.profile,
@@ -36,11 +44,14 @@ class ChannelState extends Equatable {
       posts: posts ?? this.posts,
       isLoading: isLoading ?? this.isLoading,
       failure: clearFailure ? null : failure ?? this.failure,
+      followFailure:
+          clearFollowFailure ? null : followFailure ?? this.followFailure,
     );
   }
 
   @override
-  List<Object?> get props => [profile, stats, posts, isLoading, failure];
+  List<Object?> get props =>
+      [profile, stats, posts, isLoading, failure, followFailure];
 }
 
 class ChannelCubit extends Cubit<ChannelState> {
@@ -48,62 +59,76 @@ class ChannelCubit extends Cubit<ChannelState> {
     required GetProfileByUsername getProfileByUsername,
     required GetFollowStats getFollowStats,
     required GetPostsByAuthor getPostsByAuthor,
-    required ToggleFollow toggleFollow,
+    required SetFollowing setFollowing,
   })  : _getProfileByUsername = getProfileByUsername,
         _getFollowStats = getFollowStats,
         _getPostsByAuthor = getPostsByAuthor,
-        _toggleFollow = toggleFollow,
+        _setFollowing = setFollowing,
         super(const ChannelState());
 
   final GetProfileByUsername _getProfileByUsername;
   final GetFollowStats _getFollowStats;
   final GetPostsByAuthor _getPostsByAuthor;
-  final ToggleFollow _toggleFollow;
+  final SetFollowing _setFollowing;
+
+  /// Bumped on every tap so only the latest response is applied.
+  int _followToken = 0;
 
   Future<void> load(String username) async {
     emit(state.copyWith(isLoading: true, clearFailure: true));
 
     final profileRes = await _getProfileByUsername(username);
+    if (isClosed) return;
     final profile = profileRes.valueOrNull;
 
     if (profile == null) {
-      emit(state.copyWith(
-        isLoading: false,
-        failure: profileRes.failureOrNull,
-      ));
+      emit(state.copyWith(isLoading: false, failure: profileRes.failureOrNull));
       return;
     }
 
-    final statsRes = await _getFollowStats(profile.id);
-    final postsRes = await _getPostsByAuthor(profile.id);
+    final results = await Future.wait([
+      _getFollowStats(profile.id),
+      _getPostsByAuthor(profile.id),
+    ]);
+    if (isClosed) return;
 
     emit(state.copyWith(
       profile: profile,
-      stats: statsRes.valueOrNull ?? const FollowStats(),
-      posts: postsRes.valueOrNull ?? const [],
+      stats: results[0].valueOrNull as FollowStats? ?? const FollowStats(),
+      posts: results[1].valueOrNull as List<Post>? ?? const [],
       isLoading: false,
     ));
   }
 
+  /// Optimistic. Sends the *desired* state (not "toggle"), so fast double
+  /// taps settle on whatever the user tapped last.
   Future<void> toggleFollow() async {
     final profileId = state.profile?.id;
     if (profileId == null) return;
 
-    // Optimistic update
-    final previousStats = state.stats;
-    final optimisticStats = previousStats.copyWith(
-      isFollowing: !previousStats.isFollowing,
-      followers: previousStats.isFollowing
-          ? (previousStats.followers - 1).clamp(0, 1 << 30)
-          : previousStats.followers + 1,
+    final previous = state.stats;
+    final follow = !previous.isFollowing;
+    final token = ++_followToken;
+
+    emit(state.copyWith(
+      clearFollowFailure: true,
+      stats: previous.copyWith(
+        isFollowing: follow,
+        followers: follow
+            ? previous.followers + 1
+            : (previous.followers - 1).clamp(0, 1 << 30),
+      ),
+    ));
+
+    final result = await _setFollowing(
+        SetFollowingParams(targetUserId: profileId, follow: follow));
+    if (isClosed || token != _followToken) return;
+
+    result.fold(
+      (failure) => emit(state.copyWith(stats: previous, followFailure: failure)),
+      (stats) => emit(state.copyWith(stats: stats)),
     );
-
-    emit(state.copyWith(stats: optimisticStats));
-
-    // Actual API Call
-    final result = await _toggleFollow(profileId);
-
-    // Revert on failure or apply actual updated data on success
-    emit(state.copyWith(stats: result.valueOrNull ?? previousStats));
   }
+
+  void clearFollowFailure() => emit(state.copyWith(clearFollowFailure: true));
 }

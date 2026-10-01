@@ -190,6 +190,18 @@ class ModRemoveMessage implements UseCase<void, ModContentParams> {
   }
 }
 
+class ModRemoveComment implements UseCase<void, ModContentParams> {
+  const ModRemoveComment(this._repository);
+  final ReportRepository _repository;
+
+  @override
+  Future<Result<void>> call(ModContentParams params) async {
+    final reason = params.reason?.trim() ?? '';
+    if (reason.isEmpty) return const Err(ValidationFailure('A reason is required.'));
+    return _repository.removeComment(params.id, reason);
+  }
+}
+
 class WarnUserParams {
   const WarnUserParams({required this.userId, required this.reason, this.reportId});
   final String userId;

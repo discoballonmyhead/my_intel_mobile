@@ -67,6 +67,13 @@ class SettingsPage extends StatelessWidget {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_reset_rounded),
+                  title: const Text('Change password'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.changePassword),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.flag_outlined),
                   title: const Text('My reports'),
                   trailing: const Icon(Icons.chevron_right_rounded),

@@ -220,6 +220,14 @@ class FeedProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Pushes a post changed elsewhere (e.g. liked or commented on in the post
+  /// detail screen) into the feed so both stay in step.
+  void syncPost(Post post) {
+    if (!_items.any((item) => item.post.id == post.id)) return;
+    _replacePost(post);
+    notifyListeners();
+  }
+
   /// Drops every card showing [postId] (original and reposts). Also used after
   /// a moderator removes a post from the report screen.
   void removeLocally(int postId) {

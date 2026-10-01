@@ -63,22 +63,68 @@ class FollowStats extends Equatable {
     this.followers = 0,
     this.following = 0,
     this.isFollowing = false,
+    this.followsYou = false,
   });
 
   final int followers;
   final int following;
   final bool isFollowing;
 
-  FollowStats copyWith({int? followers, int? following, bool? isFollowing}) {
+  /// The profile follows the viewer back ("Follows you" chip).
+  final bool followsYou;
+
+  FollowStats copyWith({
+    int? followers,
+    int? following,
+    bool? isFollowing,
+    bool? followsYou,
+  }) {
     return FollowStats(
       followers: followers ?? this.followers,
       following: following ?? this.following,
       isFollowing: isFollowing ?? this.isFollowing,
+      followsYou: followsYou ?? this.followsYou,
     );
   }
 
   @override
-  List<Object?> get props => [followers, following, isFollowing];
+  List<Object?> get props => [followers, following, isFollowing, followsYou];
+}
+
+enum FollowListKind {
+  followers('followers', 'FOLLOWERS'),
+  following('following', 'FOLLOWING');
+
+  const FollowListKind(this.value, this.label);
+  final String value;
+  final String label;
+
+  static FollowListKind fromValue(String? value) =>
+      value == 'following' ? FollowListKind.following : FollowListKind.followers;
+}
+
+/// One row of a followers / following list.
+class FollowListEntry extends Equatable {
+  const FollowListEntry({
+    required this.profile,
+    required this.isFollowing,
+    this.followedAt,
+  });
+
+  final Profile profile;
+
+  /// Whether the viewer follows this person.
+  final bool isFollowing;
+  final DateTime? followedAt;
+
+  FollowListEntry copyWith({bool? isFollowing}) => FollowListEntry(
+        profile: profile,
+        isFollowing: isFollowing ?? this.isFollowing,
+        followedAt: followedAt,
+      );
+
+  @override
+  List<Object?> get props => [profile, isFollowing, followedAt];
 }
 
 /// A row of `identity.osint_applications`.

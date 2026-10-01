@@ -18,6 +18,7 @@ class PostCard extends StatelessWidget {
     this.onTap,
     this.onAuthorTap,
     this.onMore,
+    this.onComment,
     super.key,
   });
 
@@ -30,6 +31,9 @@ class PostCard extends StatelessWidget {
 
   /// Opens the ⋯ menu (edit, delete, report, moderate).
   final VoidCallback? onMore;
+
+  /// Opens the comments (post detail) screen.
+  final VoidCallback? onComment;
 
   Post get post => item.post;
 
@@ -119,7 +123,13 @@ class PostCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: AppSpacing.md),
-            _ActionBar(post: post, onLike: onLike, onSave: onSave, onRepost: onRepost),
+            _ActionBar(
+              post: post,
+              onLike: onLike,
+              onSave: onSave,
+              onRepost: onRepost,
+              onComment: onComment ?? onTap,
+            ),
           ],
         ),
       ),
@@ -213,12 +223,14 @@ class _ActionBar extends StatelessWidget {
     this.onLike,
     this.onSave,
     this.onRepost,
+    this.onComment,
   });
 
   final Post post;
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
+  final VoidCallback? onComment;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +249,7 @@ class _ActionBar extends StatelessWidget {
         _ActionButton(
           icon: Icons.mode_comment_outlined,
           label: post.replyCount,
-          onTap: null,
+          onTap: onComment,
         ),
         const SizedBox(width: AppSpacing.xl),
         _ActionButton(
