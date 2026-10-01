@@ -10,11 +10,15 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/signal_timeline.dart';
 import '../../../../core/widgets/tag_chip.dart';
+import '../../domain/entities/story.dart';
 import '../providers/story_provider.dart';
-import '../widgets/story_card.dart';
+import '../widgets/signal_story_row.dart';
 
-/// Trending intelligence stories, ranked by the time-decay scorer.
+/// Intel stories in the selected window as a "Signal" timeline: newest first,
+/// grouped by day under sticky date chips, with a LIVE ticker of the regions
+/// of recent breaking stories.
 class ArticlesPage extends StatefulWidget {
   const ArticlesPage({super.key});
 
@@ -32,15 +36,35 @@ class _ArticlesPageState extends State<ArticlesPage> {
     });
   }
 
+  /// Regions of the latest breaking stories (then any story) for the ticker.
+  static List<(String, String)> _tickerEntries(List<Story> newestFirst) {
+    final seen = <String>{};
+    final out = <(String, String)>[];
+    final ordered = [
+      ...newestFirst.where((s) => s.isBreaking),
+      ...newestFirst.where((s) => !s.isBreaking),
+    ];
+    for (final s in ordered) {
+      final region = s.region?.trim() ?? '';
+      if (region.isEmpty || !seen.add(region.toLowerCase())) continue;
+      out.add((region.toUpperCase(), SignalRow.ago(s.activityAt)));
+      if (out.length == 6) break;
+    }
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<StoryProvider>();
+    final stories = [...provider.stories]
+      ..sort((a, b) => b.activityAt.compareTo(a.activityAt));
+    final ticker = _tickerEntries(stories);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('INTEL'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(84),
+          preferredSize: Size.fromHeight(84 + (ticker.isEmpty ? 0 : 30)),
           child: Column(
             children: [
               _WindowSelector(
@@ -48,6 +72,7 @@ class _ArticlesPageState extends State<ArticlesPage> {
                 onChanged: provider.setWindow,
               ),
               _TagFilter(selected: provider.tag, onChanged: provider.setTag),
+              if (ticker.isNotEmpty) LiveTicker(entries: ticker),
             ],
           ),
         ),
@@ -67,17 +92,35 @@ class _ArticlesPageState extends State<ArticlesPage> {
             ),
           StoryStatus.ready => ContentColumn(
               padded: false,
-              child: ListView.builder(
+              child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: AppSpacing.xxxl),
-                itemCount: provider.ranked.length,
-                itemBuilder: (context, index) {
-                  final story = provider.ranked[index].story;
-                  return StoryCard(
-                    story: story,
-                    onTap: () => context.push(AppRoutes.storyFor(story.id)),
-                  );
-                },
+                slivers: [
+                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
+                  for (final day in SignalDay.group<Story>(
+                      stories, (s) => s.activityAt))
+                    SliverMainAxisGroup(
+                      slivers: [
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: SignalDayHeader(day.label),
+                        ),
+                        SliverList.builder(
+                          itemCount: day.items.length,
+                          itemBuilder: (context, index) {
+                            final story = day.items[index];
+                            return SignalStoryRow(
+                              key: ValueKey(story.id),
+                              story: story,
+                              onTap: () =>
+                                  context.push(AppRoutes.storyFor(story.id)),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  const SliverToBoxAdapter(
+                      child: SizedBox(height: AppSpacing.xxxl)),
+                ],
               ),
             ),
         },
