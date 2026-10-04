@@ -173,24 +173,30 @@ class _Strip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(story.isBreaking ? '● BREAKING' : '● INTEL', style: style),
-          if (region.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(region.toUpperCase(),
-                  overflow: TextOverflow.ellipsis,
-                  style: style.copyWith(
-                      color: story.isBreaking
-                          ? Theme.of(context).colorScheme.onSurface
-                          : palette.accent)),
+          Expanded(
+            child: Row(
+              children: [
+                Text(story.isBreaking ? '● BREAKING' : '● INTEL', style: style),
+                if (region.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(region.toUpperCase(),
+                        overflow: TextOverflow.ellipsis,
+                        style: style.copyWith(
+                            color: story.isBreaking
+                                ? Theme.of(context).colorScheme.onSurface
+                                : palette.accent)),
+                  ),
+                ],
+                if (tag.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text('#${tag.toUpperCase()}',
+                      style: style.copyWith(color: palette.muted)),
+                ],
+              ],
             ),
-          ],
-          if (tag.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text('#${tag.toUpperCase()}',
-                style: style.copyWith(color: palette.muted)),
-          ],
-          const Spacer(),
+          ),
+          const SizedBox(width: 8),
           ConfidenceMeter(confidence: story.confidence),
         ],
       ),

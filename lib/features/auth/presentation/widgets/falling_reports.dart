@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import 'mint_logo.dart';
+import '../../../../core/widgets/mint_logo.dart';
 import 'radar_backdrop.dart';
 
 /// The sign-in hero: intel report cards keep falling onto a pile over a faint

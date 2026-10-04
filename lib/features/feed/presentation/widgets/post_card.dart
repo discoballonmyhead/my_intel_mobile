@@ -6,9 +6,12 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
-import '../../../../core/widgets/tag_chip.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
 
+/// One post in the feed, "clean & airy": round avatar, bold name with role
+/// icon and time on the right, plain text, rounded photo, a soft
+/// `📍 region · #tag` line and roomy actions. No boxes, just soft dividers.
 class PostCard extends StatelessWidget {
   const PostCard({
     required this.item,
@@ -18,6 +21,7 @@ class PostCard extends StatelessWidget {
     this.onTap,
     this.onAuthorTap,
     this.onMore,
+    this.highlight = false,
     super.key,
   });
 
@@ -31,112 +35,139 @@ class PostCard extends StatelessWidget {
   /// Opens the ⋯ menu (edit, delete, report, moderate).
   final VoidCallback? onMore;
 
+  /// Briefly tints the post, e.g. right after "new posts" are revealed.
+  final bool highlight;
+
+  /// News posts carry the NEWS badge for this long, as on the web app.
+  static const Duration newsBadgeWindow = Duration(hours: 48);
+
+  static const double _avatarRadius = 20;
+  static const double _textInset = _avatarRadius * 2 + 12;
+
   Post get post => item.post;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final theme = Theme.of(context);
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: highlight ? 1 : 0, end: 0),
+        duration: const Duration(milliseconds: 2500),
+        curve: Curves.easeOut,
+        builder: (context, t, child) => Container(
+          color: Color.lerp(
+              Colors.transparent, palette.accent.withValues(alpha: 0.08), t),
+          child: child,
         ),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: palette.border)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item case RepostedPost(:final reposter)) ...[
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: palette.border.withValues(alpha: 0.6))),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item case RepostedPost(:final reposter)) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: _textInset),
+                  child: Row(
+                    children: [
+                      Icon(Icons.repeat_rounded, size: 14, color: palette.muted),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          '${reposter?.username ?? 'Someone'} reposted',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: palette.muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.repeat_rounded, size: 12, color: palette.muted),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    '${reposter?.username ?? 'someone'} reposted',
-                    style: AppTypography.mono(size: 9, color: palette.muted),
+                  GestureDetector(
+                    onTap: post.author == null
+                        ? null
+                        : () => onAuthorTap?.call(post.author!.username),
+                    child: UserAvatar(
+                        name: post.author?.username, radius: _avatarRadius),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
+                        if (post.isUnderReview || post.isRemoved) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            post.isRemoved
+                                ? 'Removed by moderators · only you can see this'
+                                : 'Under review',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: post.isRemoved ? palette.accent2 : palette.warn,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        if (item case RepostedPost(:final quote)
+                            when quote != null) ...[
+                          Text(quote, style: _bodyStyle(onSurface)),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: palette.border),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(post.body, style: _bodyStyle(onSurface)),
+                          ),
+                        ] else
+                          Text(post.body, style: _bodyStyle(onSurface)),
+                        if (post.hasMedia) ...[
+                          const SizedBox(height: 10),
+                          _PostImage(url: post.mediaUrl!),
+                        ],
+                        _MetaLine(post: post),
+                        const SizedBox(height: 2),
+                        _ActionBar(
+                          post: post,
+                          onLike: onLike,
+                          onSave: onSave,
+                          onRepost: onRepost,
+                          onReply: onTap,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
             ],
-            _Header(
-              post: post,
-              item: item,
-              onAuthorTap: onAuthorTap,
-              onMore: onMore,
-            ),
-            if (post.isUnderReview || post.isRemoved) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                post.isRemoved
-                    ? 'REMOVED BY MODERATORS · ONLY YOU CAN SEE THIS'
-                    : 'UNDER REVIEW',
-                style: AppTypography.mono(
-                  size: 9,
-                  color: post.isRemoved ? palette.accent2 : palette.warn,
-                ),
-              ),
-            ],
-            if (item case RepostedPost(:final quote) when quote != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(quote, style: theme.textTheme.bodyMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  border: Border.all(color: palette.border),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                ),
-                child: Text(post.body, style: theme.textTheme.bodyMedium),
-              ),
-            ] else ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(post.body, style: theme.textTheme.bodyMedium),
-            ],
-            if (post.hasMedia) ...[
-              const SizedBox(height: AppSpacing.md),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                child: CachedNetworkImage(
-                  imageUrl: post.mediaUrl!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  placeholder: (_, __) => Container(
-                    height: 180,
-                    color: palette.surface2,
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 120,
-                    color: palette.surface2,
-                    child: Icon(Icons.broken_image_outlined, color: palette.muted),
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            _ActionBar(post: post, onLike: onLike, onSave: onSave, onRepost: onRepost),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  static TextStyle _bodyStyle(Color color) =>
+      TextStyle(fontSize: 15, height: 1.45, color: color);
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.post,
-    required this.item,
-    this.onAuthorTap,
-    this.onMore,
-  });
+  const _Header({required this.post, this.onAuthorTap, this.onMore});
 
   final Post post;
-  final FeedItem item;
   final ValueChanged<String>? onAuthorTap;
   final VoidCallback? onMore;
 
@@ -144,65 +175,145 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final author = post.author;
+    final isNews = post.postType == 'news' &&
+        DateTime.now().toUtc().difference(post.createdAt.toUtc()) <
+            PostCard.newsBadgeWindow;
+    final muted = TextStyle(fontSize: 13, color: palette.muted);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: author == null ? null : () => onAuthorTap?.call(author.username),
-          child: CircleAvatar(
-            radius: 16,
-            backgroundColor: palette.surface2,
-            child: Text(
-              (author?.username ?? '?').characters.first.toUpperCase(),
-              style: AppTypography.mono(size: 12, color: palette.accent),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
+    return SizedBox(
+      height: 26,
+      child: Row(
+        children: [
+          // Name, role icon and NEWS badge take the left; time and ⋯ stay
+          // pinned to the right edge whatever the name's length.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: GestureDetector(
+                    onTap: author == null
+                        ? null
+                        : () => onAuthorTap?.call(author.username),
                     child: Text(
                       author?.username ?? 'unknown',
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  if (author != null) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    RoleBadge(role: author.role, compact: true),
-                  ],
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    post.isEdited
-                        ? '${post.createdAt.timeAgo} · edited'
-                        : post.createdAt.timeAgo,
-                    style: AppTypography.mono(size: 9, color: palette.muted),
-                  ),
-                ],
-              ),
-              if (author != null && author.isAnalyst)
-                Text(
-                  'CRED ${author.score}',
-                  style: AppTypography.mono(size: 9, color: palette.muted),
                 ),
-            ],
+                if (author != null) ...[
+                  const SizedBox(width: 5),
+                  RoleBadge(role: author.role, compact: true),
+                ],
+                if (isNews) ...[
+                  const SizedBox(width: 7),
+                  const _NewsBadge(),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(post.isEdited ? '${post.createdAt.timeAgo} · edited' : post.createdAt.timeAgo,
+              style: muted),
+          if (onMore != null)
+            SizedBox(
+              width: 34,
+              height: 26,
+              child: IconButton(
+                tooltip: 'More',
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_horiz_rounded,
+                    size: 20, color: palette.muted),
+                onPressed: onMore,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsBadge extends StatelessWidget {
+  const _NewsBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final green = context.palette.verified;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: green.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text('NEWS',
+          style: AppTypography.mono(
+              size: 8, weight: FontWeight.w700, color: green, letterSpacing: 1)),
+    );
+  }
+}
+
+class _PostImage extends StatelessWidget {
+  const _PostImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border.withValues(alpha: 0.7)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: CachedNetworkImage(
+            imageUrl: url,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(color: palette.surface2),
+            errorWidget: (_, __, ___) => Container(
+              color: palette.surface2,
+              child: Icon(Icons.broken_image_outlined, color: palette.muted),
+            ),
           ),
         ),
-        if (post.tag != null) TagChip(label: post.tag!),
-        if (onMore != null)
-          IconButton(
-            tooltip: 'More',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.more_horiz_rounded, size: 18, color: palette.muted),
-            onPressed: onMore,
-          ),
-      ],
+      ),
+    );
+  }
+}
+
+/// `📍 Region · #tag` in plain text, showing only the parts a post has.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final tag = post.tag?.trim() ?? '';
+    final region = post.region?.trim() ?? '';
+    if (tag.isEmpty && region.isEmpty) return const SizedBox(height: 2);
+
+    final style = TextStyle(fontSize: 12, color: palette.muted);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          if (region.isNotEmpty) ...[
+            Icon(Icons.place_outlined, size: 13, color: palette.muted),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(region, overflow: TextOverflow.ellipsis, style: style),
+            ),
+          ],
+          if (region.isNotEmpty && tag.isNotEmpty) Text(' · ', style: style),
+          if (tag.isNotEmpty) Text('#${tag.toLowerCase()}', style: style),
+        ],
+      ),
     );
   }
 }
@@ -213,48 +324,62 @@ class _ActionBar extends StatelessWidget {
     this.onLike,
     this.onSave,
     this.onRepost,
+    this.onReply,
   });
 
   final Post post;
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
+  final VoidCallback? onReply;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
 
-    return Row(
-      children: [
-        _ActionButton(
-          icon: post.liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          label: post.likes,
-          active: post.liked,
-          activeColor: palette.accent2,
-          onTap: onLike,
-        ),
-        const SizedBox(width: AppSpacing.xl),
-        _ActionButton(
-          icon: Icons.mode_comment_outlined,
-          label: post.replyCount,
-          onTap: null,
-        ),
-        const SizedBox(width: AppSpacing.xl),
-        _ActionButton(
-          icon: Icons.repeat_rounded,
-          label: post.repostCount,
-          active: post.reposted,
-          activeColor: palette.verified,
-          onTap: onRepost,
-        ),
-        const Spacer(),
-        _ActionButton(
-          icon: post.saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-          active: post.saved,
-          activeColor: palette.accent,
-          onTap: onSave,
-        ),
-      ],
+    return Transform.translate(
+      offset: const Offset(-10, 0),
+      child: Row(
+        children: [
+          _ActionButton(
+            icon: post.liked
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            count: post.likes,
+            active: post.liked,
+            activeColor: palette.accent2,
+            tooltip: post.liked ? 'Unlike' : 'Like',
+            onTap: onLike,
+          ),
+          _ActionButton(
+            icon: Icons.mode_comment_outlined,
+            count: post.replyCount,
+            tooltip: 'Replies',
+            onTap: onReply,
+          ),
+          _ActionButton(
+            icon: Icons.repeat_rounded,
+            count: post.repostCount,
+            active: post.reposted,
+            activeColor: palette.verified,
+            tooltip: post.reposted ? 'Undo repost' : 'Repost',
+            onTap: onRepost,
+          ),
+          const Spacer(),
+          Transform.translate(
+            offset: const Offset(20, 0),
+            child: _ActionButton(
+              icon: post.saved
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              active: post.saved,
+              activeColor: palette.accent,
+              tooltip: post.saved ? 'Unsave' : 'Save',
+              onTap: onSave,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -262,14 +387,16 @@ class _ActionBar extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
-    this.label,
+    required this.tooltip,
+    this.count,
     this.active = false,
     this.activeColor,
     this.onTap,
   });
 
   final IconData icon;
-  final int? label;
+  final String tooltip;
+  final int? count;
   final bool active;
   final Color? activeColor;
   final VoidCallback? onTap;
@@ -277,22 +404,30 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final color = active ? (activeColor ?? palette.accent) : palette.muted;
+    final idle = Color.lerp(
+        Theme.of(context).colorScheme.onSurface, palette.muted, 0.35)!;
+    final color = active ? (activeColor ?? palette.accent) : idle;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            if (label != null && label! > 0) ...[
-              const SizedBox(width: AppSpacing.xs),
-              Text('$label', style: AppTypography.mono(size: 10, color: color)),
-            ],
-          ],
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 60, minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: color),
+                if (count != null && count! > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('$count', style: TextStyle(fontSize: 13, color: color)),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

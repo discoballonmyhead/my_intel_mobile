@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../theme/app_colors.dart';
 
 /// The MINT wordmark with its signal icon, drawn as vectors so it stays sharp
 /// at any size. Geometry is traced from the web app's `logo-light.png`
