@@ -175,7 +175,7 @@ class _AuthPageState extends State<AuthPage> {
                         ? 'SIGN IN'
                         : _role == UserRole.reporter
                             ? 'JOIN AS REPORTER'
-                            : 'JOIN AS READER',
+                            : 'JOIN AS MEMBER',
                     loading: state.isLoading,
                     onPressed: _submit,
                   ),

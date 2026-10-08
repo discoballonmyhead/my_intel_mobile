@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:mint/features/profile/presentation/providers/profile_cubit.dart';
 
@@ -149,7 +150,7 @@ class _TextLink extends StatelessWidget {
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         minimumSize: const Size(44, 44),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
       ),
       child: Text(label),
     );
