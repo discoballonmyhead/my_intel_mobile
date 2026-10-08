@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/config/env.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/mint_logo.dart';
@@ -123,6 +125,16 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
+  /// Copies the post's web link, the same link the web app's Share copies.
+  Future<void> _sharePost(Post post) async {
+    final url = '${Env.webAppUrl}/feed?highlight=${post.id}';
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Link copied.')),
+    );
+  }
+
   Future<void> _openActions(Post post) async {
     final action = await PostActionsSheet.show(
       context,
@@ -225,6 +237,7 @@ class _FeedPageState extends State<FeedPage> {
                 onLike: () => provider.toggleLike(item.post),
                 onSave: () => provider.toggleSave(item.post),
                 onRepost: () => provider.toggleRepost(item.post),
+                onShare: () => unawaited(_sharePost(item.post)),
                 onAuthorTap: (username) =>
                     unawaited(context.push(AppRoutes.channelFor(username))),
                 onMore: () => _openActions(item.post),

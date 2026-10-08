@@ -18,6 +18,7 @@ class PostCard extends StatelessWidget {
     this.onLike,
     this.onSave,
     this.onRepost,
+    this.onShare,
     this.onTap,
     this.onAuthorTap,
     this.onMore,
@@ -29,6 +30,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
+
+  /// Copies or shares a link to the post.
+  final VoidCallback? onShare;
   final VoidCallback? onTap;
   final ValueChanged<String>? onAuthorTap;
 
@@ -146,6 +150,7 @@ class PostCard extends StatelessWidget {
                           onLike: onLike,
                           onSave: onSave,
                           onRepost: onRepost,
+                          onShare: onShare,
                           onReply: onTap,
                         ),
                       ],
@@ -324,6 +329,7 @@ class _ActionBar extends StatelessWidget {
     this.onLike,
     this.onSave,
     this.onRepost,
+    this.onShare,
     this.onReply,
   });
 
@@ -331,6 +337,7 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
+  final VoidCallback? onShare;
   final VoidCallback? onReply;
 
   @override
@@ -368,14 +375,24 @@ class _ActionBar extends StatelessWidget {
           const Spacer(),
           Transform.translate(
             offset: const Offset(20, 0),
-            child: _ActionButton(
-              icon: post.saved
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              active: post.saved,
-              activeColor: palette.accent,
-              tooltip: post.saved ? 'Unsave' : 'Save',
-              onTap: onSave,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ActionButton(
+                  icon: Icons.share_outlined,
+                  tooltip: 'Share',
+                  onTap: onShare,
+                ),
+                _ActionButton(
+                  icon: post.saved
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  active: post.saved,
+                  activeColor: palette.accent,
+                  tooltip: post.saved ? 'Unsave' : 'Save',
+                  onTap: onSave,
+                ),
+              ],
             ),
           ),
         ],
