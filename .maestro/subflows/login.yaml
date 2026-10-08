@@ -12,5 +12,5 @@ appId: ${APP_ID || "app.statelesslabs.mintelspace"}
       - hideKeyboard
       - tapOn: "SIGN IN"
 - extendedWaitUntil:
-    visible: "Feed"
+    visible: "(?s)Feed.*"
     timeout: 15000
