@@ -1,0 +1,14 @@
+# test_plan: auth.sign_in.screen
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [auth]
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "SIGN IN"
+    timeout: 15000
+- assertVisible: "Email"
+- assertVisible: "Password"
+- assertVisible: "Forgot password?"
+- assertVisible: "Sign in"
+- assertVisible: "Create account"

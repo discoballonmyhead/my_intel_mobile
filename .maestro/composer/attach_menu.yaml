@@ -1,0 +1,19 @@
+# test_plan: composer.attach.menu, composer.attach.coming_soon
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [composer]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- runFlow: ../subflows/open_composer.yaml
+- tapOn: "Attach"
+- assertVisible: "Photos"
+- assertVisible: "Videos"
+- assertVisible: "Files"
+- assertVisible: "Audio"
+- assertVisible: "Poll"
+- tapOn: "Videos"
+- assertVisible: "Videos are coming soon."
+- tapOn: "Attach"
+- tapOn: "Poll"
+- assertVisible: "Polls are coming soon."
+- tapOn: "Close"

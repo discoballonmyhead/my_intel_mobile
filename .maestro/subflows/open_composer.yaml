@@ -1,0 +1,6 @@
+# From the Feed, opens the New post sheet and hides the keyboard.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+---
+- tapOn: "Feed"
+- tapOn: "New post"
+- assertVisible: "Add region"
