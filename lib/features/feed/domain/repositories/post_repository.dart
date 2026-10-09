@@ -13,6 +13,9 @@ abstract interface class PostRepository {
 
   Future<Result<List<Post>>> getSavedPosts();
 
+  /// A user's reposts of other people's posts, newest first.
+  Future<Result<List<RepostedPost>>> getRepostsByUser(String userId);
+
   Future<Result<Post>> createPost({
     required String body,
     String? region,

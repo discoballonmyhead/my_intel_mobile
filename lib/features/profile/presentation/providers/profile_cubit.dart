@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mint/core/error/failures.dart';
 import 'package:mint/core/usecases/usecase.dart';
 import 'package:mint/core/utils/result.dart';
 import 'package:mint/features/feed/domain/entities/post.dart';
+import 'package:mint/features/feed/domain/post_updates.dart';
 import 'package:mint/features/feed/domain/usecases/get_feed.dart';
 import 'package:mint/features/feed/domain/usecases/toggle_interaction.dart';
 import 'package:mint/features/profile/domain/entities/profile.dart';
@@ -19,6 +22,7 @@ class ProfileState extends Equatable {
     this.stats = const FollowStats(),
     this.posts = const [],
     this.savedPosts = const [],
+    this.reposts = const [],
     this.isLoading = false,
     this.isSubmitting = false,
     this.failure,
@@ -30,10 +34,17 @@ class ProfileState extends Equatable {
   final FollowStats stats;
   final List<Post> posts;
   final List<Post> savedPosts;
+  final List<RepostedPost> reposts;
   final bool isLoading;
   final bool isSubmitting;
   final Failure? failure;
   final String? loadedForUserId;
+
+  /// Posts you wrote and posts you reposted, newest first.
+  List<FeedItem> get activity => [
+        ...posts.map(OriginalPost.new),
+        ...reposts,
+      ]..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
 
   bool get canPublishStories => profile?.role.canPublishStories ?? false;
   bool get isAdmin => profile?.role.isAdmin ?? false;
@@ -44,6 +55,7 @@ class ProfileState extends Equatable {
     FollowStats? stats,
     List<Post>? posts,
     List<Post>? savedPosts,
+    List<RepostedPost>? reposts,
     bool? isLoading,
     bool? isSubmitting,
     Failure? failure,
@@ -56,6 +68,7 @@ class ProfileState extends Equatable {
       stats: stats ?? this.stats,
       posts: posts ?? this.posts,
       savedPosts: savedPosts ?? this.savedPosts,
+      reposts: reposts ?? this.reposts,
       isLoading: isLoading ?? this.isLoading,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       failure: clearFailure ? null : failure ?? this.failure,
@@ -70,6 +83,7 @@ class ProfileState extends Equatable {
         stats,
         posts,
         savedPosts,
+        reposts,
         isLoading,
         isSubmitting,
         failure,
@@ -90,7 +104,11 @@ class ProfileCubit extends Cubit<ProfileState> {
     ToggleLike? toggleLike,
     ToggleSave? toggleSave,
     ToggleRepost? toggleRepost,
+    GetRepostsByUser? getRepostsByUser,
+    PostUpdates? postUpdates,
   })  : _getProfile = getProfile,
+        _getRepostsByUser = getRepostsByUser,
+        _postUpdates = postUpdates,
         _toggleLike = toggleLike,
         _toggleSave = toggleSave,
         _toggleRepost = toggleRepost,
@@ -101,6 +119,7 @@ class ProfileCubit extends Cubit<ProfileState> {
         _getPostsByAuthor = getPostsByAuthor,
         _getSavedPosts = getSavedPosts,
         super(const ProfileState()) {
+    _updatesSub = postUpdates?.stream.listen(_onPostUpdated);
     // 2. Trigger the initial load immediately on creation
     syncWithUser(initialUserId);
   }
@@ -115,6 +134,9 @@ class ProfileCubit extends Cubit<ProfileState> {
   final ToggleLike? _toggleLike;
   final ToggleSave? _toggleSave;
   final ToggleRepost? _toggleRepost;
+  final GetRepostsByUser? _getRepostsByUser;
+  final PostUpdates? _postUpdates;
+  StreamSubscription<Post>? _updatesSub;
 
   /// Called by the auth listener whenever the session changes. Passing null
   /// clears state on sign-out so no stale profile leaks into the next session.
@@ -141,11 +163,12 @@ class ProfileCubit extends Cubit<ProfileState> {
 
     // Secondary sections: a failure here leaves that section empty rather
     // than failing the whole page.
-    final (stats, posts, saved, application) = await (
+    final (stats, posts, saved, application, reposts) = await (
       _getFollowStats(userId),
       _getPostsByAuthor(userId),
       _getSavedPosts(const NoParams()),
       _getMyApplication(const NoParams()),
+      _loadReposts(userId),
     ).wait;
     if (isClosed || state.loadedForUserId != userId) return;
 
@@ -155,6 +178,7 @@ class ProfileCubit extends Cubit<ProfileState> {
       stats: stats.valueOrNull ?? const FollowStats(),
       posts: posts.valueOrNull ?? const [],
       savedPosts: saved.valueOrNull ?? const [],
+      reposts: reposts,
       application: application.valueOrNull,
     ));
   }
@@ -215,7 +239,8 @@ class ProfileCubit extends Cubit<ProfileState> {
   Future<void> toggleLike(Post post) => _optimistic(
         post.copyWith(
           liked: !post.liked,
-          likes: post.liked ? (post.likes - 1).clamp(0, 1 << 30) : post.likes + 1,
+          likes:
+              post.liked ? (post.likes - 1).clamp(0, 1 << 30) : post.likes + 1,
         ),
         post,
         _toggleLike == null ? null : () => _toggleLike(post),
@@ -228,7 +253,10 @@ class ProfileCubit extends Cubit<ProfileState> {
     final now = [...state.posts, ...state.savedPosts]
         .firstWhere((p) => p.id == post.id, orElse: () => post);
     final saved = now.saved
-        ? [if (!state.savedPosts.any((p) => p.id == now.id)) now, ...state.savedPosts]
+        ? [
+            if (!state.savedPosts.any((p) => p.id == now.id)) now,
+            ...state.savedPosts
+          ]
         : state.savedPosts.where((p) => p.id != now.id).toList();
     if (!isClosed) emit(state.copyWith(savedPosts: saved));
   }
@@ -248,18 +276,81 @@ class ProfileCubit extends Cubit<ProfileState> {
 
   /// Shows [preview] straight away, then the server's answer; restores
   /// [original] if the action fails.
-  Future<void> _optimistic(
-      Post preview, Post original, Future<Result<Post>> Function()? action) async {
+  Future<void> _optimistic(Post preview, Post original,
+      Future<Result<Post>> Function()? action) async {
     if (action == null) return;
     _replace(preview);
     final result = await action();
     if (isClosed) return;
-    _replace(result.valueOrNull ?? original);
+    final updated = result.valueOrNull;
+    _replace(updated ?? original);
+    if (updated != null) {
+      _postUpdates?.publish(updated);
+      if (updated.reposted != original.reposted) await _refreshReposts();
+    }
+  }
+
+  Future<List<RepostedPost>> _loadReposts(String userId) async =>
+      (await _getRepostsByUser?.call(userId))?.valueOrNull ?? const [];
+
+  Future<void> _refreshReposts() async {
+    final userId = state.profile?.id;
+    if (userId == null) return;
+    final reposts = await _loadReposts(userId);
+    if (!isClosed) emit(state.copyWith(reposts: reposts));
   }
 
   void _replace(Post post) {
     List<Post> swap(List<Post> list) =>
         [for (final p in list) p.id == post.id ? post : p];
-    emit(state.copyWith(posts: swap(state.posts), savedPosts: swap(state.savedPosts)));
+    emit(state.copyWith(
+      posts: swap(state.posts),
+      savedPosts: swap(state.savedPosts),
+      reposts: [
+        for (final r in state.reposts)
+          r.post.id == post.id
+              ? RepostedPost(post,
+                  repostId: r.repostId,
+                  repostedAt: r.repostedAt,
+                  reposter: r.reposter,
+                  quote: r.quote)
+              : r,
+      ],
+    ));
+  }
+
+  /// A post changed in the Feed (or was just created there): bring the
+  /// Profile's lists in line without a refresh.
+  void _onPostUpdated(Post post) {
+    final me = state.profile?.id;
+    if (me == null || isClosed) return;
+    final known = [
+      ...state.posts,
+      ...state.savedPosts,
+      ...state.reposts.map((r) => r.post)
+    ].where((p) => p.id == post.id).firstOrNull;
+    _replace(post);
+
+    // A new post of yours shows at the top of Posts.
+    if (known == null && post.author?.id == me) {
+      emit(state.copyWith(posts: [post, ...state.posts]));
+    }
+    // Saved follows the bookmark.
+    final inSaved = state.savedPosts.any((p) => p.id == post.id);
+    if (post.saved && !inSaved) {
+      emit(state.copyWith(savedPosts: [post, ...state.savedPosts]));
+    } else if (!post.saved && inSaved) {
+      emit(state.copyWith(
+          savedPosts: state.savedPosts.where((p) => p.id != post.id).toList()));
+    }
+    // Reposting or undoing a repost changes what Posts lists.
+    if (known == null || known.reposted != post.reposted)
+      unawaited(_refreshReposts());
+  }
+
+  @override
+  Future<void> close() {
+    _updatesSub?.cancel();
+    return super.close();
   }
 }

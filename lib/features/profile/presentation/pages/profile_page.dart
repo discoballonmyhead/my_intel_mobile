@@ -121,20 +121,27 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _postCard(BuildContext context, ProfileCubit cubit, Post post) => PostCard(
-        key: ValueKey(post.id),
-        item: OriginalPost(post),
-        onLike: () => cubit.toggleLike(post),
-        onSave: () => cubit.toggleSave(post),
-        onRepost: () => cubit.toggleRepost(post),
-        onShare: () => unawaited(_share(post)),
-        onAuthorTap: (username) =>
-            unawaited(context.push(AppRoutes.channelFor(username))),
-      );
+  Widget _postCard(BuildContext context, ProfileCubit cubit, FeedItem item) {
+    final post = item.post;
+    return PostCard(
+      key: ValueKey(
+          '${item is RepostedPost ? 'r${item.repostId}' : 'p'}${post.id}'),
+      item: item,
+      onLike: () => cubit.toggleLike(post),
+      onSave: () => cubit.toggleSave(post),
+      onRepost: () => cubit.toggleRepost(post),
+      onShare: () => unawaited(_share(post)),
+      onAuthorTap: (username) =>
+          unawaited(context.push(AppRoutes.channelFor(username))),
+    );
+  }
 
-  Widget _profile(BuildContext context, ProfileState state, ProfileCubit cubit) {
+  Widget _profile(
+      BuildContext context, ProfileState state, ProfileCubit cubit) {
     final profile = state.profile!;
-    final items = _showSaved ? state.savedPosts : state.posts;
+    final List<FeedItem> items = _showSaved
+        ? [for (final p in state.savedPosts) OriginalPost(p)]
+        : state.activity;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 40),
@@ -164,12 +171,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   body: 'What you post shows up here.',
                 )
         else
-          for (final post in items) _postCard(context, cubit, post),
+          for (final item in items) _postCard(context, cubit, item),
       ],
     );
   }
 
-  Widget _results(BuildContext context, ProfileState state, ProfileCubit cubit) {
+  Widget _results(
+      BuildContext context, ProfileState state, ProfileCubit cubit) {
     final palette = context.palette;
     final q = _query.text.trim();
     if (q.isEmpty) {
@@ -202,7 +210,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: inter(13, weight: FontWeight.w600, color: palette.muted)),
         ),
         Divider(height: 1, color: palette.border),
-        for (final post in found) _postCard(context, cubit, post),
+        for (final post in found) _postCard(context, cubit, OriginalPost(post)),
       ],
     );
   }
@@ -239,7 +247,8 @@ class _TopBar extends StatelessWidget {
                 autofocus: true,
                 onChanged: onChanged,
                 textInputAction: TextInputAction.search,
-                style: inter(16, color: Theme.of(context).colorScheme.onSurface),
+                style:
+                    inter(16, color: Theme.of(context).colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Search your posts',
                   hintStyle: inter(16, color: palette.muted),
@@ -248,7 +257,8 @@ class _TopBar extends StatelessWidget {
                       ? null
                       : IconButton(
                           tooltip: 'Clear',
-                          icon: Icon(Icons.cancel_rounded, color: palette.muted),
+                          icon:
+                              Icon(Icons.cancel_rounded, color: palette.muted),
                           onPressed: () {
                             query.clear();
                             onChanged('');
@@ -362,8 +372,8 @@ class _ProfileSkeleton extends StatelessWidget {
     Widget bar(double w, double h) => Container(
           width: w,
           height: h,
-          decoration:
-              BoxDecoration(color: block, borderRadius: BorderRadius.circular(h / 2)),
+          decoration: BoxDecoration(
+              color: block, borderRadius: BorderRadius.circular(h / 2)),
         );
     Widget row() => Padding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
@@ -373,7 +383,8 @@ class _ProfileSkeleton extends StatelessWidget {
               Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(color: block, shape: BoxShape.circle)),
+                  decoration:
+                      BoxDecoration(color: block, shape: BoxShape.circle)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
