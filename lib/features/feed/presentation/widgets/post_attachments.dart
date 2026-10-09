@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/post_extras.dart';
+import 'photo_viewer.dart';
 
 String formatBytes(int? bytes) {
   if (bytes == null || bytes <= 0) return '';
@@ -100,11 +101,19 @@ class _ImageGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final urls = [for (final i in images) i.url];
+    Widget photo(int i) => GestureDetector(
+          onTap: () => PhotoViewer.open(context, urls, index: i),
+          child: _NetworkImage(url: urls[i]),
+        );
     if (images.length == 1) {
+      final image = images.first;
       return _Frame(
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: _NetworkImage(url: images.first.url),
+        child: AdaptivePhoto(
+          url: image.url,
+          width: image.width,
+          height: image.height,
+          child: photo(0),
         ),
       );
     }
@@ -118,11 +127,11 @@ class _ImageGrid extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           children: [
-            for (final image in images)
+            for (var i = 0; i < images.length; i++)
               Semantics(
                 image: true,
-                label: image.fileName ?? 'Photo',
-                child: _NetworkImage(url: image.url),
+                label: images[i].fileName ?? 'Photo',
+                child: photo(i),
               ),
           ],
         ),
@@ -131,32 +140,90 @@ class _ImageGrid extends StatelessWidget {
   }
 }
 
-class _VideoTile extends StatelessWidget {
+/// A video in a post: its first frame (or the uploaded thumbnail) at the
+/// video's own shape, with a play button and its length. Tapping plays it.
+class _VideoTile extends StatefulWidget {
   const _VideoTile({required this.attachment});
 
   final PostAttachment attachment;
 
   @override
+  State<_VideoTile> createState() => _VideoTileState();
+}
+
+class _VideoTileState extends State<_VideoTile> {
+  VideoPlayerController? _preview;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.attachment.thumbnailUrl == null) {
+      // No thumbnail is uploaded with the video, so show its first frame.
+      final c = VideoPlayerController.networkUrl(Uri.parse(widget.attachment.url));
+      _preview = c;
+      c.initialize().then((_) {
+        if (!mounted) return;
+        c.setVolume(0);
+        setState(() {});
+      }).catchError((Object _) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _preview?.dispose();
+    super.dispose();
+  }
+
+  static String _length(Duration d) {
+    final m = d.inMinutes, s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final thumb = attachment.thumbnailUrl;
+    final a = widget.attachment;
+    final thumb = a.thumbnailUrl;
+    final c = _preview;
+    final ready = c != null && c.value.isInitialized;
+    final ratio = ready
+        ? AdaptivePhoto.clampRatio(c.value.aspectRatio)
+        : (a.width != null && a.height != null && a.height! > 0)
+            ? AdaptivePhoto.clampRatio(a.width! / a.height!)
+            : 16 / 9;
+    final length = ready
+        ? c.value.duration
+        : a.durationSeconds == null
+            ? null
+            : Duration(milliseconds: (a.durationSeconds! * 1000).round());
+
     return Semantics(
       button: true,
       label: 'Play video',
       child: GestureDetector(
         onTap: () => showDialog<void>(
           context: context,
-          builder: (_) => _VideoDialog(url: attachment.url),
+          builder: (_) => _VideoDialog(url: a.url),
         ),
         child: _Frame(
           child: AspectRatio(
-            aspectRatio: 16 / 9,
+            aspectRatio: ratio,
             child: Stack(
               fit: StackFit.expand,
               children: [
+                const ColoredBox(color: Colors.black),
                 if (thumb != null)
                   _NetworkImage(url: thumb)
-                else
-                  const ColoredBox(color: Colors.black),
+                else if (ready)
+                  FittedBox(
+                    fit: BoxFit.cover,
+                    clipBehavior: Clip.hardEdge,
+                    child: SizedBox(
+                      width: c.value.size.width,
+                      height: c.value.size.height,
+                      child: VideoPlayer(c),
+                    ),
+                  ),
                 Center(
                   child: Container(
                     width: 52,
@@ -169,6 +236,23 @@ class _VideoTile extends StatelessWidget {
                         size: 34, color: Colors.white),
                   ),
                 ),
+                if (length != null && length > Duration.zero)
+                  Positioned(
+                    right: 10,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(_length(length),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
               ],
             ),
           ),

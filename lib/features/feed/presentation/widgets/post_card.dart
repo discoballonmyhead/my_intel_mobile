@@ -8,6 +8,7 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
+import 'photo_viewer.dart';
 import 'post_attachments.dart';
 import 'post_poll_view.dart';
 
@@ -292,15 +293,18 @@ class _PostImage extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: CachedNetworkImage(
-            imageUrl: url,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: palette.surface2),
-            errorWidget: (_, __, ___) => Container(
-              color: palette.surface2,
-              child: Icon(Icons.broken_image_outlined, color: palette.muted),
+        child: AdaptivePhoto(
+          url: url,
+          child: GestureDetector(
+            onTap: () => PhotoViewer.open(context, [url]),
+            child: CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: palette.surface2),
+              errorWidget: (_, __, ___) => Container(
+                color: palette.surface2,
+                child: Icon(Icons.broken_image_outlined, color: palette.muted),
+              ),
             ),
           ),
         ),

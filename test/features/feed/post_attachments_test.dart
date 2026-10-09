@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mint/features/feed/domain/entities/post_extras.dart';
+import 'package:mint/features/feed/presentation/widgets/photo_viewer.dart';
 import 'package:mint/features/feed/presentation/widgets/post_attachments.dart';
 
 PostAttachment _a(AttachmentKind kind,
@@ -40,5 +41,12 @@ void main() {
       expect(attachmentShowsAsImage(_a(AttachmentKind.audio, name: 'note.m4a')),
           isFalse);
     });
+  });
+
+  test('photos keep their shape between 3:4 and 1.91:1', () {
+    expect(AdaptivePhoto.clampRatio(800 / 1200), closeTo(3 / 4, 1e-9));
+    expect(AdaptivePhoto.clampRatio(4 / 5), closeTo(0.8, 1e-9));
+    expect(AdaptivePhoto.clampRatio(16 / 9), closeTo(16 / 9, 1e-9));
+    expect(AdaptivePhoto.clampRatio(3), closeTo(1.91, 1e-9));
   });
 }
