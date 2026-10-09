@@ -437,6 +437,137 @@ features:
         title: Following lists stories your follows reported on
         automation: manual
 
+  # ── Profile and Settings (Figma 3.7 dark, 3.8 light) ─────────────────────
+  - id: profile.page
+    area: Profile
+    name: Profile tab
+    status: ready
+    cases:
+      - id: profile.page.header
+        title: Calm header
+        steps: [Open the Profile tab]
+        expected:
+          - Initial on a soft red halo, username, "N followers · N following · N aura", Edit profile
+          - No "Member since", no channel link, no analyst link on the profile
+        automation: .maestro/profile/tabs.yaml
+      - id: profile.page.tabs
+        title: Posts and Saved look like the Feed
+        steps: [Tap Saved, then Posts]
+        expected:
+          - Posts use the Feed post card, with photos, videos and polls
+          - Like, save, repost and share work, and update straight away
+          - '"No posts yet" / "Nothing saved yet" when empty'
+        automation: .maestro/profile/tabs.yaml
+      - id: profile.page.loading_error
+        title: Loading and error
+        expected: [Soft skeleton while loading, '"Can’t load your profile" with Try again']
+        automation: manual
+
+  - id: profile.search
+    area: Profile
+    name: Search your posts
+    status: ready
+    cases:
+      - id: profile.search.find
+        title: Search your own posts
+        steps: [Tap the search icon, Type a word, Tap Cancel]
+        expected:
+          - '"Search your posts" before typing'
+          - Matching posts with a count, or "No posts match …"
+          - Cancel returns to the profile
+        automation: .maestro/profile/search.yaml
+
+  - id: profile.edit
+    area: Profile
+    name: Edit profile
+    status: ready
+    cases:
+      - id: profile.edit.username
+        title: Change username in the bottom sheet
+        steps: [Tap Edit profile, change the username, Save]
+        expected: ['"Profile updated" message; a taken name shows its error on the field']
+        automation: manual
+        note: Changes the real username.
+
+  - id: profile.about_me
+    area: Profile
+    name: About me (bio)
+    status: coming_soon
+    blocked_by: bio column on identity.profiles (≤160 chars), returned by profile RPCs
+    cases:
+      - id: profile.about_me.edit
+        title: Add, edit and show a short bio
+        automation: manual
+
+  - id: profile.followers
+    area: Profile
+    name: Followers and following
+    status: ready
+    cases:
+      - id: profile.followers.lists
+        title: Open the lists from the profile
+        steps: [Tap "followers", switch to Following, Back]
+        expected:
+          - Two tabs with counts; each person shows name and role
+          - Follow back / Following buttons; empty states with Find people
+        automation: .maestro/profile/followers.yaml
+
+  - id: settings.main
+    area: Settings
+    name: Settings and its pages
+    status: ready
+    cases:
+      - id: settings.list
+        title: Settings list
+        expected:
+          - '"Become an OSINT analyst" card with Apply → on top (or the application state)'
+          - Appearance, Account, Support, Sign out, Delete account
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.appearance
+        title: Appearance
+        expected: [Match system / Light / Dark with a tick on the current one; no arrows]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.account
+        title: Account
+        expected: [Username, Email, Change password; Role, Member since; My reports]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.support
+        title: Support
+        expected: [Send feedback]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.sign_out
+        title: Sign out asks first
+        expected: ['"Sign out of MINT?" sheet with Sign out and Cancel']
+        automation: .maestro/profile/settings_pages.yaml
+
+  - id: settings.change_password
+    area: Settings
+    name: Change password
+    status: ready
+    cases:
+      - id: settings.change_password.wrong_current
+        title: Wrong current password
+        expected: ['"That password is not right." on the current-password field; nothing changes']
+        automation: .maestro/profile/change_password_wrong.yaml
+      - id: settings.change_password.success
+        title: Change the password
+        expected: ['Back to Account with "Password updated"']
+        automation: manual
+        note: Changes the real password.
+
+  - id: settings.change_email
+    area: Settings
+    name: Change email
+    status: ready
+    blocked_by: Supabase redirect URL io.mint.app://email-changed and the "Secure email change" setting, for the link to open the app
+    cases:
+      - id: settings.change_email.send
+        title: Send the confirmation link
+        expected:
+          - '"Check your inbox" screen; Account shows "Confirm … from your inbox"'
+          - A wrong password shows on the password field
+        automation: manual
+
   # ── Unit tests ─────────────────────────────────────────────────────────────
   - id: unit.create_post
     area: Domain
@@ -461,3 +592,23 @@ features:
         title: Topics match loosely; confidence, breaking and equality
         automation: unit
         test: test/features/stories/presentation/providers/intel_filters_test.dart
+
+  - id: unit.account_security
+    area: Settings
+    name: Change password and email rules
+    status: ready
+    cases:
+      - id: unit.account_security.rules
+        title: Length, match, wrong current password, valid and different email
+        automation: unit
+        test: test/features/auth/account_security_test.dart
+
+  - id: unit.profile_search
+    area: Profile
+    name: Search your posts
+    status: ready
+    cases:
+      - id: unit.profile_search.words
+        title: Every word must match, ignoring case
+        automation: unit
+        test: test/features/profile/profile_search_test.dart

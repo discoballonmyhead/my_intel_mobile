@@ -5,5 +5,6 @@ flows:
   - "feed/*"
   - "composer/*"
   - "intel/*"
+  - "profile/*"
 executionOrder:
   continueOnFailure: true
