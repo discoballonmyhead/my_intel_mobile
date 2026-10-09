@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../profile/domain/entities/profile.dart';
+import 'post_extras.dart';
+
+export 'post_extras.dart';
 
 /// A row of `content.posts` with its author merged in and the viewer's own
 /// interaction state resolved.
@@ -29,6 +32,8 @@ class Post extends Equatable {
     this.editCount = 0,
     this.moderationStatus = 'visible',
     this.deletedAt,
+    this.attachments = const [],
+    this.poll,
   });
 
   final int id;
@@ -68,6 +73,11 @@ class Post extends Equatable {
   final String moderationStatus;
   final DateTime? deletedAt;
 
+  /// From `content.post_attachments`, in posting order. When present,
+  /// [mediaUrl] only mirrors the first photo for older clients.
+  final List<PostAttachment> attachments;
+  final PostPoll? poll;
+
   bool get isEdited => editedAt != null;
   bool get isDeleted => deletedAt != null;
   bool get isRemoved => moderationStatus == 'removed';
@@ -79,6 +89,7 @@ class Post extends Equatable {
   bool isOwnedBy(String? userId) => userId != null && authorId == userId;
 
   bool get hasMedia => mediaUrl != null && mediaUrl!.isNotEmpty;
+  bool get hasAttachments => attachments.isNotEmpty;
   bool get hasCoordinates => regionLat != null && regionLng != null;
 
   Post copyWith({
@@ -93,6 +104,7 @@ class Post extends Equatable {
     bool? saved,
     bool? reposted,
     Profile? author,
+    PostPoll? poll,
   }) {
     return Post(
       id: id,
@@ -118,6 +130,8 @@ class Post extends Equatable {
       editCount: editCount ?? this.editCount,
       moderationStatus: moderationStatus ?? this.moderationStatus,
       deletedAt: deletedAt,
+      attachments: attachments,
+      poll: poll ?? this.poll,
     );
   }
 
@@ -134,6 +148,8 @@ class Post extends Equatable {
         editedAt,
         moderationStatus,
         deletedAt,
+        attachments,
+        poll,
       ];
 }
 

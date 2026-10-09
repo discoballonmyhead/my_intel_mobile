@@ -8,6 +8,8 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
+import 'post_attachments.dart';
+import 'post_poll_view.dart';
 
 /// One post in the feed, "clean & airy": round avatar, bold name with role
 /// icon and time on the right, plain text, rounded photo, a soft
@@ -22,6 +24,7 @@ class PostCard extends StatelessWidget {
     this.onTap,
     this.onAuthorTap,
     this.onMore,
+    this.onVote,
     this.highlight = false,
     super.key,
   });
@@ -38,6 +41,9 @@ class PostCard extends StatelessWidget {
 
   /// Opens the ⋯ menu (edit, delete, report, moderate).
   final VoidCallback? onMore;
+
+  /// Casts a poll vote; returns whether it went through.
+  final Future<bool> Function(int optionId)? onVote;
 
   /// Briefly tints the post, e.g. right after "new posts" are revealed.
   final bool highlight;
@@ -139,9 +145,18 @@ class PostCard extends StatelessWidget {
                           ),
                         ] else
                           Text(post.body, style: _bodyStyle(onSurface)),
-                        if (post.hasMedia) ...[
+                        // media_url only mirrors the first photo when a post
+                        // has attachments, so it is the fallback, not both.
+                        if (post.hasAttachments) ...[
+                          const SizedBox(height: 10),
+                          PostAttachments(attachments: post.attachments),
+                        ] else if (post.hasMedia) ...[
                           const SizedBox(height: 10),
                           _PostImage(url: post.mediaUrl!),
+                        ],
+                        if (post.poll case final poll?) ...[
+                          const SizedBox(height: 10),
+                          PostPollView(poll: poll, onVote: onVote),
                         ],
                         _MetaLine(post: post),
                         const SizedBox(height: 2),

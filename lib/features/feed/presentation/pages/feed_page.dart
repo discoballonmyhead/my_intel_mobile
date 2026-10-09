@@ -125,6 +125,17 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
+  Future<bool> _votePoll(Post post, int optionId) async {
+    final provider = context.read<FeedProvider>();
+    final ok = await provider.votePoll(post, optionId);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.failure?.message ?? 'Vote failed.')),
+      );
+    }
+    return ok;
+  }
+
   /// Copies the post's web link, the same link the web app's Share copies.
   Future<void> _sharePost(Post post) async {
     final url = '${Env.webAppUrl}/feed?highlight=${post.id}';
@@ -241,6 +252,7 @@ class _FeedPageState extends State<FeedPage> {
                 onAuthorTap: (username) =>
                     unawaited(context.push(AppRoutes.channelFor(username))),
                 onMore: () => _openActions(item.post),
+                onVote: (optionId) => _votePoll(item.post, optionId),
               );
             },
           ),

@@ -71,6 +71,12 @@ class PostRpc {
   static const String edit = 'post_edit';
   static const String delete = 'post_delete';
   static const String editHistory = 'post_get_edit_history';
+
+  /// Post + attachments + poll in one transaction (migration 20261009).
+  static const String create = 'social_create_post';
+  static const String attachmentsForPosts = 'attachment_get_for_posts';
+  static const String pollsForPosts = 'poll_get_for_posts';
+  static const String pollVote = 'poll_vote';
 }
 
 /// RPCs for direct messages and groups (migration 04 + 10).
