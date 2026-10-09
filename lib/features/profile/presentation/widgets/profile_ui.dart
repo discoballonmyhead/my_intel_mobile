@@ -12,7 +12,11 @@ TextStyle inter(double size,
         {FontWeight weight = FontWeight.w400, Color? color, double? height}) =>
     // letterSpacing 0 so the theme's spaced-out mono title style doesn't leak in.
     GoogleFonts.inter(
-        fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: 0);
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: 0);
 
 /// Back arrow and a centred sentence-case title.
 PreferredSizeWidget softAppBar(BuildContext context, String title,
@@ -41,7 +45,8 @@ class SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
         child: Text(text,
-            style: inter(13, weight: FontWeight.w600, color: context.palette.muted)),
+            style: inter(13,
+                weight: FontWeight.w600, color: context.palette.muted)),
       );
 }
 
@@ -105,19 +110,22 @@ class SettingsGroup extends StatelessWidget {
     );
   }
 
-  Widget _titleBlock(SettingsRow r, AppPalette palette, Color onSurface) => Column(
+  Widget _titleBlock(SettingsRow r, AppPalette palette, Color onSurface) =>
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(r.title, style: inter(16, color: r.titleColor ?? onSurface)),
           if (r.subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(r.subtitle!, style: inter(13, color: r.subtitleColor ?? palette.muted)),
+            Text(r.subtitle!,
+                style: inter(13, color: r.subtitleColor ?? palette.muted)),
           ],
         ],
       );
 
-  Widget _row(BuildContext context, SettingsRow r, AppPalette palette, Color onSurface) {
+  Widget _row(BuildContext context, SettingsRow r, AppPalette palette,
+      Color onSurface) {
     final showChevron = r.chevron && r.onTap != null && !r.checked;
     return InkWell(
       onTap: r.onTap,
@@ -204,7 +212,10 @@ class SoftMessage extends StatelessWidget {
             filledAction
                 ? PillButton(label: action!, onPressed: onAction, width: 170)
                 : PillButton(
-                    label: action!, onPressed: onAction, width: 150, soft: true),
+                    label: action!,
+                    onPressed: onAction,
+                    width: 150,
+                    soft: true),
           ],
         ],
       ),
@@ -271,10 +282,14 @@ class SoftField extends StatefulWidget {
     this.onChanged,
     this.autofocus = false,
     this.capitalization = TextCapitalization.none,
+    this.id,
     super.key,
   });
 
   final TextCapitalization capitalization;
+
+  /// Accessibility identifier for the text field (VoiceOver and UI tests).
+  final String? id;
   final String label;
   final TextEditingController controller;
   final String? hint;
@@ -311,51 +326,57 @@ class _SoftFieldState extends State<SoftField> {
           Padding(
             padding: const EdgeInsets.only(left: 6, bottom: 8),
             child: Text(widget.label,
-                style: inter(13, weight: FontWeight.w600, color: palette.muted)),
+                style:
+                    inter(13, weight: FontWeight.w600, color: palette.muted)),
           ),
-          TextField(
-            controller: widget.controller,
-            autofocus: widget.autofocus,
-            textCapitalization: widget.capitalization,
-            obscureText: widget.password && _hidden,
-            maxLines: widget.password ? 1 : widget.maxLines,
-            keyboardType: widget.keyboardType,
-            autocorrect: !widget.password,
-            enableSuggestions: !widget.password,
-            onChanged: widget.onChanged,
-            style: inter(16, color: Theme.of(context).colorScheme.onSurface),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: inter(16, color: palette.muted),
-              filled: true,
-              fillColor: palette.surface2,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              border: border,
-              enabledBorder: border,
-              focusedBorder: border.copyWith(
-                borderSide: BorderSide(
-                    color: error == null ? palette.border : palette.accent,
-                    width: 1.5),
+          Semantics(
+            identifier: widget.id,
+            label: widget.label,
+            child: TextField(
+              controller: widget.controller,
+              autofocus: widget.autofocus,
+              textCapitalization: widget.capitalization,
+              obscureText: widget.password && _hidden,
+              maxLines: widget.password ? 1 : widget.maxLines,
+              keyboardType: widget.keyboardType,
+              autocorrect: !widget.password,
+              enableSuggestions: !widget.password,
+              onChanged: widget.onChanged,
+              style: inter(16, color: Theme.of(context).colorScheme.onSurface),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: inter(16, color: palette.muted),
+                filled: true,
+                fillColor: palette.surface2,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                border: border,
+                enabledBorder: border,
+                focusedBorder: border.copyWith(
+                  borderSide: BorderSide(
+                      color: error == null ? palette.border : palette.accent,
+                      width: 1.5),
+                ),
+                suffixIcon: widget.password
+                    ? IconButton(
+                        tooltip: _hidden ? 'Show password' : 'Hide password',
+                        icon: Icon(
+                            _hidden
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: palette.muted),
+                        onPressed: () => setState(() => _hidden = !_hidden),
+                      )
+                    : null,
               ),
-              suffixIcon: widget.password
-                  ? IconButton(
-                      tooltip: _hidden ? 'Show password' : 'Hide password',
-                      icon: Icon(
-                          _hidden
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: palette.muted),
-                      onPressed: () => setState(() => _hidden = !_hidden),
-                    )
-                  : null,
             ),
           ),
           if (error != null || widget.help != null)
             Padding(
               padding: const EdgeInsets.only(left: 6, top: 8),
               child: Text(error ?? widget.help!,
-                  style: inter(13, color: error != null ? palette.accent : palette.muted)),
+                  style: inter(13,
+                      color: error != null ? palette.accent : palette.muted)),
             ),
         ],
       ),

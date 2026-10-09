@@ -26,6 +26,7 @@ class AppearancePage extends StatelessWidget {
           title: title,
           subtitle: subtitle,
           checked: theme.mode == mode,
+          chevron: false,
           onTap: () => theme.setMode(mode),
         );
     return Scaffold(

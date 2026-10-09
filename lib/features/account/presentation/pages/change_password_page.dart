@@ -86,6 +86,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           children: [
             SoftField(
               label: 'Current password',
+              id: 'current-password',
               controller: _current,
               password: true,
               error: _currentError,
@@ -108,12 +109,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             const SizedBox(height: 8),
             SoftField(
               label: 'New password',
+              id: 'new-password',
               controller: _new,
               password: true,
               help: 'At least 8 characters.',
             ),
             SoftField(
               label: 'Confirm new password',
+              id: 'confirm-password',
               controller: _confirm,
               password: true,
               error: _formError,
