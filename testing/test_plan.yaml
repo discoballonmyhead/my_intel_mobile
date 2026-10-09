@@ -346,6 +346,97 @@ features:
         expected: ['"Final results"; no voting']
         automation: manual
 
+  # ── Intel (Figma 3.5 dark, 3.6 light) ────────────────────────────────────
+  - id: intel.list
+    area: Intel
+    name: Intel list, search and Following
+    status: ready
+    cases:
+      - id: intel.list.cards
+        title: Stories show as soft cards with a confidence ring
+        steps: [Open the Intel tab]
+        expected:
+          - MINT logo, search bar, filter button, All / Following tabs
+          - Stories newest first under Today / Yesterday / This week / Earlier
+          - 'Each card: details line, headline, summary, ring with the % inside'
+          - 'Ring colour: green 70%+, amber 55–69%, grey below 55%'
+          - Breaking stories show a red "● Breaking" details line
+        automation: manual
+      - id: intel.list.search
+        title: Search bar opens Search
+        steps: [Tap the search bar]
+        expected: ['The Search page opens with "Search stories, posts, people, #tags"']
+        automation: .maestro/intel/search.yaml
+      - id: intel.list.following
+        title: Following tab
+        steps: [Tap Following, then All]
+        expected:
+          - 'Following reads "Nothing from people you follow yet" (backend query not built yet)'
+          - All shows the stories again
+        automation: .maestro/intel/following.yaml
+      - id: intel.list.loading_error
+        title: Loading skeleton and error
+        steps: [Open Intel on a slow connection, then with no connection]
+        expected:
+          - Soft skeleton cards while loading
+          - '"Can’t load stories" with Try again when offline'
+        automation: manual
+
+  - id: intel.filters
+    area: Intel
+    name: Intel filters
+    status: ready
+    cases:
+      - id: intel.filters.sheet
+        title: Filter sheet
+        steps: [Tap the filter button, Pick Geopolitics and High only, Tap "Show N stories"]
+        expected:
+          - 'Sheet has Topics (several at once), Time, Confidence, Breaking only, Reset'
+          - The button counts matching stories as you change filters
+          - '"Geopolitics" also finds stories tagged "Geopolitical"'
+        automation: .maestro/intel/filters.yaml
+      - id: intel.filters.chips
+        title: Active filters
+        steps: [Apply filters, Tap × on one chip, Tap Clear]
+        expected:
+          - A red dot on the filter button while filters are on
+          - One removable chip per filter; Clear removes all
+        automation: .maestro/intel/filters.yaml
+      - id: intel.filters.no_matches
+        title: No matches
+        steps: [Pick Nuclear and Breaking only]
+        expected: ['"No stories match your filters" with Clear filters']
+        automation: manual
+
+  - id: intel.story
+    area: Intel
+    name: Story page
+    status: ready
+    cases:
+      - id: intel.story.open
+        title: Open a story
+        steps: [Tap a story card, Tap Back]
+        expected:
+          - Details line, headline, "Updated …" (a date when older than a week)
+          - 'Confidence card: large ring with "High/Medium/Low confidence" and the source count'
+          - Summary, then Sources as soft cards, or "No sources yet"
+          - Back returns to Intel
+        automation: .maestro/intel/open_story.yaml
+      - id: intel.story.loading_error
+        title: Story loading and error
+        expected: [Skeleton while loading, '"Can’t load this story" with Try again']
+        automation: manual
+
+  - id: intel.following_backend
+    area: Intel
+    name: Following shows stories reported by people you follow
+    status: coming_soon
+    blocked_by: Supabase query for stories with sources from followed users
+    cases:
+      - id: intel.following_backend.list
+        title: Following lists stories your follows reported on
+        automation: manual
+
   # ── Unit tests ─────────────────────────────────────────────────────────────
   - id: unit.create_post
     area: Domain
@@ -360,3 +451,13 @@ features:
         title: Uploads the photo first and posts its URL; stops if the upload fails
         automation: unit
         test: test/features/feed/domain/usecases/create_post_test.dart
+
+  - id: unit.intel_filters
+    area: Intel
+    name: Intel filter matching
+    status: ready
+    cases:
+      - id: unit.intel_filters.matching
+        title: Topics match loosely; confidence, breaking and equality
+        automation: unit
+        test: test/features/stories/presentation/providers/intel_filters_test.dart

@@ -4,5 +4,6 @@ flows:
   - "auth/*"
   - "feed/*"
   - "composer/*"
+  - "intel/*"
 executionOrder:
   continueOnFailure: true
