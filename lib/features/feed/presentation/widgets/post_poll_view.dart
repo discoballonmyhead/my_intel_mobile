@@ -75,9 +75,14 @@ class _PostPollViewState extends State<PostPollView> {
               child: Row(
                 children: [
                   Expanded(
+                    // The theme's button text is the mono label style; poll
+                    // options read as body text.
                     child: Text(option.label,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0,
+                            color: onSurface)),
                   ),
                   if (_pendingId == option.id)
                     const SizedBox.square(
@@ -99,7 +104,8 @@ class _PostPollViewState extends State<PostPollView> {
 }
 
 class _ResultRow extends StatelessWidget {
-  const _ResultRow({required this.option, required this.total, required this.mine});
+  const _ResultRow(
+      {required this.option, required this.total, required this.mine});
 
   final PollOption option;
   final int total;
@@ -118,7 +124,9 @@ class _ResultRow extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: mine ? palette.accent.withValues(alpha: 0.6) : palette.border),
+              color: mine
+                  ? palette.accent.withValues(alpha: 0.6)
+                  : palette.border),
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -129,28 +137,37 @@ class _ResultRow extends StatelessWidget {
               child: ColoredBox(
                   color: palette.accent.withValues(alpha: mine ? 0.18 : 0.10)),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(option.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+            // Fills the row so the label and percentage sit in the middle.
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(option.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  fontSize: 14,
+                                  fontWeight: mine
+                                      ? FontWeight.w600
+                                      : FontWeight.w500)),
+                    ),
+                    if (mine) ...[
+                      Icon(Icons.check_circle_rounded,
+                          size: 16, color: palette.accent),
+                      const SizedBox(width: 6),
+                    ],
+                    Text('$pct%',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: mine ? FontWeight.w600 : FontWeight.w500)),
-                  ),
-                  if (mine) ...[
-                    Icon(Icons.check_circle_rounded, size: 16, color: palette.accent),
-                    const SizedBox(width: 6),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: palette.muted)),
                   ],
-                  Text('$pct%',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: palette.muted)),
-                ],
+                ),
               ),
             ),
           ],
