@@ -67,6 +67,16 @@ String _extensionOf(String name, String fallback) {
   return ext == 'jpeg' ? 'jpg' : ext;
 }
 
+/// A photo or video picked through Files is attached as one, so the feed
+/// shows it instead of a file row.
+AttachmentKind _kindForFile(String name) => switch (_extensionOf(name, '')) {
+      'jpg' || 'png' || 'webp' || 'gif' || 'heic' || 'heif' =>
+        AttachmentKind.image,
+      'mp4' || 'm4v' || 'mov' => AttachmentKind.video,
+      final ext when _audioExtensions.contains(ext) => AttachmentKind.audio,
+      _ => AttachmentKind.file,
+    };
+
 class _ComposerSheetState extends State<ComposerSheet> {
   final _body = TextEditingController();
   final _focus = FocusNode();
@@ -220,12 +230,13 @@ class _ComposerSheetState extends State<ComposerSheet> {
       allowedExtensions: audio ? _audioExtensions : null,
     );
     if (file == null || !mounted) return;
-    if ((await file.length() ?? 0) > kind.maxBytes) {
-      _tooLarge(kind);
+    final picked = audio ? kind : _kindForFile(file.name);
+    if ((await file.length() ?? 0) > picked.maxBytes) {
+      _tooLarge(picked);
       return;
     }
     final bytes = await file.readAsBytes();
-    _addAttachment(kind, bytes, file.name, audio ? 'm4a' : 'bin');
+    _addAttachment(picked, bytes, file.name, audio ? 'm4a' : 'bin');
   }
 
   void _addAttachment(

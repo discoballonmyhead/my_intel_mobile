@@ -13,6 +13,16 @@ String formatBytes(int? bytes) {
   return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
+/// Photos, plus images that were attached as a file (posted before the
+/// composer started treating picked images as photos).
+bool attachmentShowsAsImage(PostAttachment a) {
+  if (a.kind == AttachmentKind.image) return true;
+  if (a.kind != AttachmentKind.file) return false;
+  if (a.mimeType?.startsWith('image/') ?? false) return true;
+  final name = (a.fileName ?? a.url).toLowerCase().split('?').first;
+  return RegExp(r'\.(jpe?g|png|webp|gif|heic|heif)$').hasMatch(name);
+}
+
 /// A post's attachments: photos in a grid, then videos, audio and files in
 /// posting order.
 class PostAttachments extends StatelessWidget {
@@ -22,10 +32,9 @@ class PostAttachments extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final images =
-        attachments.where((a) => a.kind == AttachmentKind.image).toList();
+    final images = attachments.where(attachmentShowsAsImage).toList();
     final others =
-        attachments.where((a) => a.kind != AttachmentKind.image).toList();
+        attachments.where((a) => !attachmentShowsAsImage(a)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,7 +303,8 @@ class _AudioTileState extends State<_AudioTile> {
     if (value.isPlaying) {
       await controller.pause();
     } else {
-      if (value.position >= value.duration) await controller.seekTo(Duration.zero);
+      if (value.position >= value.duration)
+        await controller.seekTo(Duration.zero);
       await controller.play();
     }
   }
