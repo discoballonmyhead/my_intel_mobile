@@ -70,6 +70,7 @@ class RpcErrorMessages {
     'already_voted': 'You have already voted on this poll.',
     'poll_option_not_found': 'That option no longer exists.',
     'poll_not_found': 'That poll no longer exists.',
+    'blocked_content': 'This post contains blocked content.',
     // not found
     'post_not_found': 'That post no longer exists.',
     'message_not_found': 'That message no longer exists.',

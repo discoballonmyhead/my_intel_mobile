@@ -116,12 +116,16 @@ class PostCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
-                        if (post.isUnderReview || post.isRemoved) ...[
+                        if (post.isUnderReview ||
+                            post.isPendingReview ||
+                            post.isRemoved) ...[
                           const SizedBox(height: 4),
                           Text(
                             post.isRemoved
                                 ? 'Removed by moderators · only you can see this'
-                                : 'Under review',
+                                : post.isPendingReview
+                                    ? 'Waiting for review · only you can see this'
+                                    : 'Under review',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,

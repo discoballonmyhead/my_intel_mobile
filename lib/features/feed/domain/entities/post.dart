@@ -69,7 +69,8 @@ class Post extends Equatable {
   final DateTime? editedAt;
   final int editCount;
 
-  /// 'visible' | 'limited' | 'under_review' | 'removed'
+  /// 'visible' | 'limited' | 'under_review' | 'pending' | 'removed'.
+  /// 'pending' is a News post held for a moderator; only its author sees it.
   final String moderationStatus;
   final DateTime? deletedAt;
 
@@ -82,6 +83,7 @@ class Post extends Equatable {
   bool get isDeleted => deletedAt != null;
   bool get isRemoved => moderationStatus == 'removed';
   bool get isUnderReview => moderationStatus == 'under_review';
+  bool get isPendingReview => moderationStatus == 'pending';
 
   /// Hidden from everyone but its author (and staff).
   bool get isHidden => isDeleted || isRemoved;
