@@ -56,6 +56,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
       guard(_remote.getFollowedUserIds);
 
   @override
+  Future<Result<List<Profile>>> getFollowList(String userId,
+          {required bool followers}) =>
+      guard(() async => _remote.getFollowList(userId, followers: followers));
+
+  @override
   Future<Result<List<Profile>>> searchProfiles(String query, {int limit = 10}) =>
       guard(() async => _remote.searchProfiles(query, limit: limit));
 

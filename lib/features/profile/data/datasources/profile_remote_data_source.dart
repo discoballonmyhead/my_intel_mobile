@@ -22,6 +22,11 @@ abstract interface class ProfileRemoteDataSource {
   Future<void> setApplicationStatus(int applicationId, String status);
   Future<void> awardAuraPoints(String userId, int points);
   Future<Map<String, ProfileModel>> profilesByIds(Iterable<String?> ids);
+
+  /// People who follow [userId] (followers) or whom [userId] follows,
+  /// newest first.
+  Future<List<ProfileModel>> getFollowList(String userId,
+      {required bool followers});
 }
 
 class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
@@ -327,6 +332,29 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     } on PostgrestException catch (e) {
       dev.log('PostgrestException in profilesByIds', error: e, name: _logName);
       rethrow;
+    }
+  }
+
+  @override
+  Future<List<ProfileModel>> getFollowList(String userId,
+      {required bool followers}) async {
+    // Same identity.follows table the web app reads; names come from
+    // profile_get_by_ids since PostgREST can't embed across schemas.
+    final mine = followers ? 'following_id' : 'follower_id';
+    final theirs = followers ? 'follower_id' : 'following_id';
+    try {
+      final rows = await _service.identity
+          .from('follows')
+          .select(theirs)
+          .eq(mine, userId)
+          .order('id', ascending: false)
+          .limit(500);
+      final ids = [for (final r in rows) r[theirs] as String];
+      final byId = await profilesByIds(ids);
+      return [for (final id in ids) if (byId[id] case final p?) p];
+    } on PostgrestException catch (e) {
+      dev.log('PostgrestException in getFollowList', error: e, name: _logName);
+      throw ex.ServerException(e.message, code: e.code);
     }
   }
 }

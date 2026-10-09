@@ -5,8 +5,9 @@ import 'package:mint/features/profile/presentation/providers/profile_cubit.dart'
 import 'package:provider/provider.dart';
 
 import '../../../../core/responsive/responsive_scope.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/usecases/apply_for_osint.dart';
+import '../widgets/profile_ui.dart';
 
 class ApplyOsintPage extends StatefulWidget {
   const ApplyOsintPage({super.key});
@@ -16,7 +17,6 @@ class ApplyOsintPage extends StatefulWidget {
 }
 
 class _ApplyOsintPageState extends State<ApplyOsintPage> {
-  final _formKey = GlobalKey<FormState>();
   final _channel = TextEditingController();
   final _handle = TextEditingController();
   final _portfolio = TextEditingController();
@@ -37,8 +37,15 @@ class _ApplyOsintPageState extends State<ApplyOsintPage> {
     super.dispose();
   }
 
+  String? _channelError;
+  String? _handleError;
+
   void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _channelError = _channel.text.trim().isEmpty ? 'Add your channel name.' : null;
+      _handleError = _handle.text.trim().isEmpty ? 'Add your handle.' : null;
+    });
+    if (_channelError != null || _handleError != null) return;
 
     context.read<ProfileCubit>().applyForOsint(
           OsintApplicationParams(
@@ -61,7 +68,7 @@ class _ApplyOsintPageState extends State<ApplyOsintPage> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Application submitted for review.')),
+            const SnackBar(content: Text('Application sent')),
           );
           Navigator.of(context).maybePop();
         }
@@ -70,80 +77,58 @@ class _ApplyOsintPageState extends State<ApplyOsintPage> {
         final existing = state.application;
         final sending = state.isSubmitting;
 
+        final muted = context.palette.muted;
         return Scaffold(
-          appBar: AppBar(title: const Text('ANALYST ACCESS')),
+          appBar: softAppBar(context, 'Become an analyst'),
           body: ContentColumn(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 40),
               children: [
                 if (existing != null && existing.isPending)
                   Text(
-                    'Your application for "${existing.channelName}" is pending review.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    'Your application for \u201c${existing.channelName}\u201d is in review. '
+                    'We\u2019ll let you know when a moderator has looked at it.',
+                    style: inter(15, color: muted, height: 1.45),
                   )
                 else if (existing != null && !existing.canReapply())
                   Text(
                     'Your last application wasn\u2019t approved. You can apply '
                     'again from ${DateFormat('d MMM yyyy').format(existing.reapplyAvailableAt!.toLocal())}.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: inter(15, color: muted, height: 1.45),
                   )
                 else ...[
-                  Text(
-                    'Analysts can publish intelligence reports that cluster into '
-                    'stories. Tell us about your work.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _channel,
-                          decoration:
-                              const InputDecoration(hintText: 'Channel name'),
-                          validator: (v) =>
-                              (v ?? '').trim().isEmpty ? 'Required' : null,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        TextFormField(
-                          controller: _handle,
-                          decoration: const InputDecoration(
-                            hintText: 'Handle (e.g. @yourname)',
-                          ),
-                          validator: (v) =>
-                              (v ?? '').trim().isEmpty ? 'Required' : null,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        TextFormField(
-                          controller: _portfolio,
-                          decoration: const InputDecoration(
-                            hintText: 'Portfolio or profile link (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        TextFormField(
-                          controller: _why,
-                          minLines: 3,
-                          maxLines: 6,
-                          decoration: const InputDecoration(
-                            hintText: 'Why do you want analyst access?',
-                          ),
-                        ),
-                      ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 22),
+                    child: Text(
+                      'Analysts publish intel that clusters into stories. Tell us about your work.',
+                      style: inter(15, color: muted, height: 1.45),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
-                  FilledButton(
-                    onPressed: sending ? null : _submit,
-                    child: sending
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('SUBMIT APPLICATION'),
-                  ),
+                  SoftField(
+                      label: 'Channel name',
+                      controller: _channel,
+                      hint: 'e.g. Gulf Watch',
+                      error: _channelError),
+                  SoftField(
+                      label: 'Handle',
+                      controller: _handle,
+                      hint: '@yourname',
+                      error: _handleError),
+                  SoftField(
+                      label: 'Portfolio or profile link (optional)',
+                      controller: _portfolio,
+                      hint: 'https://',
+                      keyboardType: TextInputType.url),
+                  SoftField(
+                      label: 'Why do you want to be an analyst?',
+                      controller: _why,
+                      hint: 'A few lines about your experience',
+                      maxLines: 4),
+                  const SizedBox(height: 8),
+                  PillButton(
+                      label: 'Submit application',
+                      onPressed: _submit,
+                      loading: sending),
                 ],
               ],
             ),

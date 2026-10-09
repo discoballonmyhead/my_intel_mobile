@@ -23,6 +23,12 @@ abstract interface class AuthRemoteDataSource {
   Future<void> sendPasswordReset(String email);
   Future<void> updatePassword(String newPassword);
   Future<void> resendVerification(String email);
+
+  /// Signs in again with the current email to confirm [password] is right.
+  Future<void> verifyPassword(String password);
+
+  /// Starts an email change; Supabase emails a confirmation link.
+  Future<void> changeEmail(String newEmail);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -30,6 +36,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   final SupabaseService _service;
   static const String _recoveryRedirect = 'io.mint.app://reset-password';
+  static const String _emailChangedRedirect = 'io.mint.app://email-changed';
 
   @override
   Stream<AuthUserModel?> get authStateChanges => _service.auth.onAuthStateChange
@@ -128,6 +135,29 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<void> resendVerification(String email) async {
     try {
       await _service.auth.resend(type: sb.OtpType.signup, email: email);
+    } on sb.AuthException catch (e) {
+      throw ex.AuthException(e.message, code: e.statusCode);
+    }
+  }
+
+  @override
+  Future<void> verifyPassword(String password) async {
+    final email = _service.auth.currentUser?.email;
+    if (email == null) throw const ex.AuthException('You are signed out.');
+    try {
+      await _service.auth.signInWithPassword(email: email, password: password);
+    } on sb.AuthException catch (e) {
+      throw ex.AuthException(e.message, code: e.statusCode);
+    }
+  }
+
+  @override
+  Future<void> changeEmail(String newEmail) async {
+    try {
+      await _service.auth.updateUser(
+        sb.UserAttributes(email: newEmail),
+        emailRedirectTo: _emailChangedRedirect,
+      );
     } on sb.AuthException catch (e) {
       throw ex.AuthException(e.message, code: e.statusCode);
     }

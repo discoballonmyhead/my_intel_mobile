@@ -2,8 +2,10 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mint/core/error/failures.dart';
 import 'package:mint/core/usecases/usecase.dart';
+import 'package:mint/core/utils/result.dart';
 import 'package:mint/features/feed/domain/entities/post.dart';
 import 'package:mint/features/feed/domain/usecases/get_feed.dart';
+import 'package:mint/features/feed/domain/usecases/toggle_interaction.dart';
 import 'package:mint/features/profile/domain/entities/profile.dart';
 import 'package:mint/features/profile/domain/usecases/apply_for_osint.dart';
 import 'package:mint/features/profile/domain/usecases/get_profile.dart';
@@ -85,7 +87,13 @@ class ProfileCubit extends Cubit<ProfileState> {
     required GetFollowStats getFollowStats,
     required GetPostsByAuthor getPostsByAuthor,
     required GetSavedPosts getSavedPosts,
+    ToggleLike? toggleLike,
+    ToggleSave? toggleSave,
+    ToggleRepost? toggleRepost,
   })  : _getProfile = getProfile,
+        _toggleLike = toggleLike,
+        _toggleSave = toggleSave,
+        _toggleRepost = toggleRepost,
         _updateProfile = updateProfile,
         _applyForOsint = applyForOsint,
         _getMyApplication = getMyApplication,
@@ -104,6 +112,9 @@ class ProfileCubit extends Cubit<ProfileState> {
   final GetFollowStats _getFollowStats;
   final GetPostsByAuthor _getPostsByAuthor;
   final GetSavedPosts _getSavedPosts;
+  final ToggleLike? _toggleLike;
+  final ToggleSave? _toggleSave;
+  final ToggleRepost? _toggleRepost;
 
   /// Called by the auth listener whenever the session changes. Passing null
   /// clears state on sign-out so no stale profile leaks into the next session.
@@ -197,5 +208,58 @@ class ProfileCubit extends Cubit<ProfileState> {
         return true;
       },
     );
+  }
+
+  // ── Post actions on the Profile's own lists (same use cases as the Feed) ──
+
+  Future<void> toggleLike(Post post) => _optimistic(
+        post.copyWith(
+          liked: !post.liked,
+          likes: post.liked ? (post.likes - 1).clamp(0, 1 << 30) : post.likes + 1,
+        ),
+        post,
+        _toggleLike == null ? null : () => _toggleLike(post),
+      );
+
+  Future<void> toggleSave(Post post) async {
+    await _optimistic(post.copyWith(saved: !post.saved), post,
+        _toggleSave == null ? null : () => _toggleSave(post));
+    // Saving from Posts adds it to Saved; unsaved posts leave Saved.
+    final now = [...state.posts, ...state.savedPosts]
+        .firstWhere((p) => p.id == post.id, orElse: () => post);
+    final saved = now.saved
+        ? [if (!state.savedPosts.any((p) => p.id == now.id)) now, ...state.savedPosts]
+        : state.savedPosts.where((p) => p.id != now.id).toList();
+    if (!isClosed) emit(state.copyWith(savedPosts: saved));
+  }
+
+  Future<void> toggleRepost(Post post) => _optimistic(
+        post.copyWith(
+          reposted: !post.reposted,
+          repostCount: post.reposted
+              ? (post.repostCount - 1).clamp(0, 1 << 30)
+              : post.repostCount + 1,
+        ),
+        post,
+        _toggleRepost == null
+            ? null
+            : () => _toggleRepost(ToggleRepostParams(post: post)),
+      );
+
+  /// Shows [preview] straight away, then the server's answer; restores
+  /// [original] if the action fails.
+  Future<void> _optimistic(
+      Post preview, Post original, Future<Result<Post>> Function()? action) async {
+    if (action == null) return;
+    _replace(preview);
+    final result = await action();
+    if (isClosed) return;
+    _replace(result.valueOrNull ?? original);
+  }
+
+  void _replace(Post post) {
+    List<Post> swap(List<Post> list) =>
+        [for (final p in list) p.id == post.id ? post : p];
+    emit(state.copyWith(posts: swap(state.posts), savedPosts: swap(state.savedPosts)));
   }
 }

@@ -60,6 +60,14 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Result<void>> resendVerification(String email) =>
       _guard(() => _remote.resendVerification(email));
 
+  @override
+  Future<Result<void>> verifyPassword(String password) =>
+      _guard(() => _remote.verifyPassword(password));
+
+  @override
+  Future<Result<void>> changeEmail(String newEmail) =>
+      _guard(() => _remote.changeEmail(newEmail));
+
   Future<Result<T>> _guard<T>(Future<T> Function() action) async {
     try {
       return Ok(await action());

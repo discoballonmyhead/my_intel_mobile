@@ -34,6 +34,8 @@ import '../../features/moderation/presentation/cubits/mod_queue_cubit.dart';
 import '../../features/moderation/presentation/cubits/my_reports_cubit.dart';
 import '../../features/moderation/presentation/cubits/report_detail_cubit.dart';
 import '../../features/moderation/presentation/pages/admin_dashboard_page.dart';
+import '../../features/account/presentation/pages/change_email_page.dart';
+import '../../features/account/presentation/pages/change_password_page.dart';
 import '../../features/moderation/presentation/pages/feedback_page.dart';
 import '../../features/moderation/presentation/pages/mod_queue_page.dart';
 import '../../features/moderation/presentation/pages/my_reports_page.dart';
@@ -41,7 +43,9 @@ import '../../features/moderation/presentation/pages/report_detail_page.dart';
 import '../../features/profile/presentation/pages/apply_osint_page.dart';
 import '../../features/profile/presentation/pages/channel_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/profile/presentation/pages/follow_list_page.dart';
 import '../../features/profile/presentation/pages/settings_page.dart';
+import '../../features/profile/presentation/pages/settings_sub_pages.dart';
 import '../../features/profile/presentation/providers/profile_cubit.dart';
 import '../../features/profile/presentation/providers/transient_channel_cubit.dart';
 import '../../features/search/presentation/pages/search_page.dart';
@@ -256,7 +260,46 @@ class AppRouter {
                 child: const DeleteAccountPage(),
               ),
             ),
+            GoRoute(
+              path: 'appearance',
+              name: RouteNames.appearance,
+              builder: (context, state) => const AppearancePage(),
+            ),
+            GoRoute(
+              path: 'account',
+              name: RouteNames.accountSettings,
+              builder: (context, state) => const AccountSettingsPage(),
+              routes: [
+                GoRoute(
+                  path: 'password',
+                  name: RouteNames.changePassword,
+                  builder: (context, state) => const ChangePasswordPage(),
+                ),
+                GoRoute(
+                  path: 'email',
+                  name: RouteNames.changeEmail,
+                  builder: (context, state) => const ChangeEmailPage(),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: 'support',
+              name: RouteNames.support,
+              builder: (context, state) => const SupportPage(),
+            ),
           ],
+        ),
+        GoRoute(
+          path: AppRoutes.followers,
+          name: RouteNames.followers,
+          parentNavigatorKey: _rootKey,
+          builder: (context, state) => const FollowListPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.following,
+          name: RouteNames.following,
+          parentNavigatorKey: _rootKey,
+          builder: (context, state) => const FollowListPage(showFollowing: true),
         ),
         GoRoute(
           path: AppRoutes.feedback,
