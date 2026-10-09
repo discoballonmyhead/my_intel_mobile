@@ -98,6 +98,12 @@ void main() {
     expect(bad.failureOrNull, isA<ValidationFailure>());
   });
 
+  test('allows 500 characters and rejects 501', () async {
+    expect((await createPost(CreatePostParams(body: 'a' * 500))).isOk, isTrue);
+    final tooLong = await createPost(CreatePostParams(body: 'a' * 501));
+    expect(tooLong.failureOrNull?.message, 'Posts are limited to 500 characters.');
+  });
+
   test('stops and reports when an upload fails', () async {
     repo.failUploads = true;
     final result = await createPost(

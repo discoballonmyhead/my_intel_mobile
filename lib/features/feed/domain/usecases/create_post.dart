@@ -66,7 +66,8 @@ class CreatePostParams {
 class CreatePost implements UseCase<Post, CreatePostParams> {
   const CreatePost(this._repository);
 
-  static const int maxLength = 2000;
+  /// Same as the web composer; `social_create_post` rejects longer bodies.
+  static const int maxLength = 500;
   static const int maxAttachments = 4;
 
   final PostRepository _repository;
@@ -79,7 +80,7 @@ class CreatePost implements UseCase<Post, CreatePostParams> {
       return const Err(ValidationFailure('Write something before posting.'));
     }
     if (body.length > maxLength) {
-      return const Err(ValidationFailure('Posts are limited to 2000 characters.'));
+      return const Err(ValidationFailure('Posts are limited to $maxLength characters.'));
     }
     if (params.attachments.length > maxAttachments) {
       return const Err(

@@ -958,6 +958,9 @@ class _PollEditor extends StatelessWidget {
 class _CharRing extends StatelessWidget {
   const _CharRing({required this.left});
 
+  /// Characters left when the count appears and the ring turns amber.
+  static const int warnAt = 50;
+
   final int left;
 
   @override
@@ -967,7 +970,7 @@ class _CharRing extends StatelessWidget {
     final used = (max - left).clamp(0, max);
     final color = left < 0
         ? palette.accent2
-        : left <= 200
+        : left <= _CharRing.warnAt
             ? palette.warn
             : palette.accent;
 
@@ -976,7 +979,7 @@ class _CharRing extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (left <= 200) ...[
+          if (left <= _CharRing.warnAt) ...[
             Text('$left',
                 style: GoogleFonts.inter(
                     fontSize: 12, fontWeight: FontWeight.w600, color: color)),
