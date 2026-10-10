@@ -1,0 +1,22 @@
+# test_plan: settings.list, settings.appearance, settings.account, settings.support
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [profile]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Profile.*"
+- tapOn: "Settings"
+- assertVisible: "(?s)Appearance.*"
+- tapOn: "(?s)Appearance.*"
+- assertVisible: "(?s)Match system.*"
+- tapOn: "Back"
+- tapOn: "(?s)Account.*"
+- assertVisible: "Change password"
+- assertVisible: "(?s).*Member since.*"
+- tapOn: "Back"
+- tapOn: "(?s)Support.*"
+- assertVisible: "(?s)Send feedback.*"
+- tapOn: "Back"
+- tapOn: "(?s)Sign out.*"
+- assertVisible: "Sign out of MINT?"
+- tapOn: "Cancel"

@@ -1,0 +1,9 @@
+# test_plan: intel.list.search
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [intel]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Intel.*"
+- tapOn: "Search"
+- assertVisible: "Search stories, posts, people, #tags"

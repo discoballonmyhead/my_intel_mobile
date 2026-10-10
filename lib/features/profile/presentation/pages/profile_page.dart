@@ -78,6 +78,18 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+/// Opens [location]; when the user comes back, reloads this profile so
+/// follows, edits, deletes and saves made on that screen show up here.
+Future<void> _pushThenRefresh(
+  BuildContext context,
+  String location, {
+  Object? extra,
+}) async {
+  final cubit = context.read<ProfileCubit>();
+  await context.push(location, extra: extra);
+  if (!cubit.isClosed) await cubit.refresh();
+}
+
 class _Header extends StatelessWidget {
   const _Header({required this.profile});
 
@@ -127,7 +139,8 @@ class _Header extends StatelessWidget {
             Text('|', style: TextStyle(color: palette.border)),
             _TextLink(
               label: 'View channel',
-              onPressed: () => context.push(AppRoutes.channelFor(profile.username)),
+              onPressed: () => _pushThenRefresh(
+                  context, AppRoutes.channelFor(profile.username)),
             ),
           ],
         ),
@@ -169,8 +182,24 @@ class _Stats extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _Stat(value: stats.followers, label: 'FOLLOWERS'),
-        _Stat(value: stats.following, label: 'FOLLOWING'),
+        _Stat(
+          value: stats.followers,
+          label: 'FOLLOWERS',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.followers.value),
+            extra: '@${profile.username}',
+          ),
+        ),
+        _Stat(
+          value: stats.following,
+          label: 'FOLLOWING',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.following.value),
+            extra: '@${profile.username}',
+          ),
+        ),
         _Stat(value: profile.auraPoints, label: 'AURA'),
         if (profile.isAnalyst)
           _Stat(
@@ -184,15 +213,23 @@ class _Stats extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.value, required this.label, this.labelColor});
+  const _Stat({
+    required this.value,
+    required this.label,
+    this.labelColor,
+    this.onTap,
+  });
 
   final int value;
   final String label;
   final Color? labelColor;
 
+  /// Followers / following open the people list.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final content = Column(
       children: [
         Text('$value', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.xs),
@@ -205,6 +242,16 @@ class _Stat extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        child: content,
+      ),
     );
   }
 }
@@ -529,17 +576,37 @@ class _PostRow extends StatelessWidget {
     final time = post.isEdited
         ? '${post.createdAt.timeAgo} · edited'
         : post.createdAt.timeAgo;
-    final meta = showAuthor && author != null ? '@$author · $time' : time;
+    final metaStyle = AppTypography.mono(size: 10, color: context.palette.muted);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(meta, style: AppTypography.mono(size: 10, color: context.palette.muted)),
-          const SizedBox(height: AppSpacing.xs),
-          Text(post.body, style: Theme.of(context).textTheme.bodyMedium),
-        ],
+    // Tap the row → the post with its comments; tap "@author" (Saved tab)
+    // → that person's channel.
+    return InkWell(
+      onTap: () => _pushThenRefresh(context, AppRoutes.postFor(post.id)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showAuthor && author != null)
+              Row(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        _pushThenRefresh(context, AppRoutes.channelFor(author)),
+                    child: Text('@$author',
+                        style: metaStyle.copyWith(
+                            color: context.palette.accent)),
+                  ),
+                  Text(' · $time', style: metaStyle),
+                ],
+              )
+            else
+              Text(time, style: metaStyle),
+            const SizedBox(height: AppSpacing.xs),
+            Text(post.body, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
       ),
     );
   }

@@ -36,6 +36,10 @@ class StoryRemoteDataSourceImpl implements StoryRemoteDataSource {
     try {
       final res = await _service
           .rpc('story_get_by_id', params: {'p_story_id': storyId});
+      // The RPC returns a set (a list with one row), not a single object.
+      if (res is List) {
+        return res.isEmpty ? null : Map<String, dynamic>.from(res.first as Map);
+      }
       return res as Map<String, dynamic>?;
     } on PostgrestException catch (e) {
       throw ex.ServerException(e.message, code: e.code);

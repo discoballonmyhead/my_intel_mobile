@@ -1,0 +1,11 @@
+# test_plan: feed.post_actions.share
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [feed]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "All"
+- tapOn:
+    text: "Share"
+    index: 0
+- assertVisible: "Link copied."

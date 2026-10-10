@@ -1,0 +1,12 @@
+# test_plan: profile.followers
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [profile]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Profile.*"
+- tapOn: "(?s)\\d+ followers"
+- assertVisible: "(?s).*Followers.*"
+- tapOn: "(?s).*Following"
+- tapOn: "Back"
+- assertVisible: "Edit profile"

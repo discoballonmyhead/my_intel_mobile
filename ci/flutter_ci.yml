@@ -1,0 +1,61 @@
+name: MINT Mobile CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Fails on errors only; older info and warning notes do not block a PR.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # Unit tests mock the backend, so no Supabase secrets are needed here.
+      - name: Run tests
+        run: flutter test --coverage
+
+      - name: Check the test plan and Maestro flows
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'PY'
+          import glob, yaml
+          files = ["testing/test_plan.yaml"] + glob.glob(".maestro/**/*.yaml", recursive=True)
+          for f in files:
+              list(yaml.safe_load_all(open(f)))
+          plan = yaml.safe_load(open("testing/test_plan.yaml"))
+          missing = [c["automation"] for feat in plan["features"] for c in feat["cases"]
+                     if str(c.get("automation", "")).startswith(".maestro/")
+                     and not glob.glob(c["automation"])]
+          assert not missing, f"Test plan points at missing flows: {missing}"
+          print(f"{len(files)} YAML files OK")
+          PY
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
