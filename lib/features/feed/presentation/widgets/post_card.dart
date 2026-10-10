@@ -6,15 +6,19 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
-import '../../../../core/widgets/tag_chip.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
 
+/// One post in the feed, "clean & airy": round avatar, bold name with role
+/// icon and time on the right, plain text, rounded photo, a soft
+/// `📍 region · #tag` line and roomy actions. No boxes, just soft dividers.
 class PostCard extends StatelessWidget {
   const PostCard({
     required this.item,
     this.onLike,
     this.onSave,
     this.onRepost,
+    this.onShare,
     this.onTap,
     this.onAuthorTap,
     this.onMore,
@@ -26,6 +30,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
+
+  /// Copies or shares a link to the post.
+  final VoidCallback? onShare;
   final VoidCallback? onTap;
   final ValueChanged<String>? onAuthorTap;
 
@@ -40,14 +47,18 @@ class PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final theme = Theme.of(context);
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: highlight ? 1 : 0, end: 0),
+        duration: const Duration(milliseconds: 2500),
+        curve: Curves.easeOut,
+        builder: (context, t, child) => Container(
+          color: Color.lerp(
+              Colors.transparent, palette.accent.withValues(alpha: 0.08), t),
+          child: child,
         ),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: palette.border)),
@@ -102,30 +113,71 @@ class PostCard extends StatelessWidget {
                   border: Border.all(color: palette.border),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
-                child: Text(post.body, style: theme.textTheme.bodyMedium),
-              ),
-            ] else ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(post.body, style: theme.textTheme.bodyMedium),
-            ],
-            if (post.hasMedia) ...[
-              const SizedBox(height: AppSpacing.md),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                child: CachedNetworkImage(
-                  imageUrl: post.mediaUrl!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  placeholder: (_, __) => Container(
-                    height: 180,
-                    color: palette.surface2,
+                const SizedBox(height: 8),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: post.author == null
+                        ? null
+                        : () => onAuthorTap?.call(post.author!.username),
+                    child: UserAvatar(
+                        name: post.author?.username, radius: _avatarRadius),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 120,
-                    color: palette.surface2,
-                    child: Icon(Icons.broken_image_outlined, color: palette.muted),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
+                        if (post.isUnderReview || post.isRemoved) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            post.isRemoved
+                                ? 'Removed by moderators · only you can see this'
+                                : 'Under review',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: post.isRemoved ? palette.accent2 : palette.warn,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        if (item case RepostedPost(:final quote)
+                            when quote != null) ...[
+                          Text(quote, style: _bodyStyle(onSurface)),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: palette.border),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(post.body, style: _bodyStyle(onSurface)),
+                          ),
+                        ] else
+                          Text(post.body, style: _bodyStyle(onSurface)),
+                        if (post.hasMedia) ...[
+                          const SizedBox(height: 10),
+                          _PostImage(url: post.mediaUrl!),
+                        ],
+                        _MetaLine(post: post),
+                        const SizedBox(height: 2),
+                        _ActionBar(
+                          post: post,
+                          onLike: onLike,
+                          onSave: onSave,
+                          onRepost: onRepost,
+                          onShare: onShare,
+                          onReply: onTap,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
             const SizedBox(height: AppSpacing.md),
@@ -141,18 +193,15 @@ class PostCard extends StatelessWidget {
       ),
     );
   }
+
+  static TextStyle _bodyStyle(Color color) =>
+      TextStyle(fontSize: 15, height: 1.45, color: color);
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.post,
-    required this.item,
-    this.onAuthorTap,
-    this.onMore,
-  });
+  const _Header({required this.post, this.onAuthorTap, this.onMore});
 
   final Post post;
-  final FeedItem item;
   final ValueChanged<String>? onAuthorTap;
   final VoidCallback? onMore;
 
@@ -160,6 +209,10 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final author = post.author;
+    final isNews = post.postType == 'news' &&
+        DateTime.now().toUtc().difference(post.createdAt.toUtc()) <
+            PostCard.newsBadgeWindow;
+    final muted = TextStyle(fontSize: 13, color: palette.muted);
 
     // Avatar AND name open the profile. Previously only the 32px avatar did,
     // so tapping the username fell through to the card's tap (post detail).
@@ -223,15 +276,40 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        if (post.tag != null) TagChip(label: post.tag!),
-        if (onMore != null)
-          IconButton(
-            tooltip: 'More',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.more_horiz_rounded, size: 18, color: palette.muted),
-            onPressed: onMore,
-          ),
-      ],
+      ),
+    );
+  }
+}
+
+/// `📍 Region · #tag` in plain text, showing only the parts a post has.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final tag = post.tag?.trim() ?? '';
+    final region = post.region?.trim() ?? '';
+    if (tag.isEmpty && region.isEmpty) return const SizedBox(height: 2);
+
+    final style = TextStyle(fontSize: 12, color: palette.muted);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          if (region.isNotEmpty) ...[
+            Icon(Icons.place_outlined, size: 13, color: palette.muted),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(region, overflow: TextOverflow.ellipsis, style: style),
+            ),
+          ],
+          if (region.isNotEmpty && tag.isNotEmpty) Text(' · ', style: style),
+          if (tag.isNotEmpty) Text('#${tag.toLowerCase()}', style: style),
+        ],
+      ),
     );
   }
 }
@@ -293,14 +371,16 @@ class _ActionBar extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
-    this.label,
+    required this.tooltip,
+    this.count,
     this.active = false,
     this.activeColor,
     this.onTap,
   });
 
   final IconData icon;
-  final int? label;
+  final String tooltip;
+  final int? count;
   final bool active;
   final Color? activeColor;
   final VoidCallback? onTap;
@@ -308,22 +388,30 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final color = active ? (activeColor ?? palette.accent) : palette.muted;
+    final idle = Color.lerp(
+        Theme.of(context).colorScheme.onSurface, palette.muted, 0.35)!;
+    final color = active ? (activeColor ?? palette.accent) : idle;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            if (label != null && label! > 0) ...[
-              const SizedBox(width: AppSpacing.xs),
-              Text('$label', style: AppTypography.mono(size: 10, color: color)),
-            ],
-          ],
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 60, minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: color),
+                if (count != null && count! > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('$count', style: TextStyle(fontSize: 13, color: color)),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

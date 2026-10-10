@@ -1,0 +1,18 @@
+# test_plan: composer.news.toggle, composer.news.confirm
+# Cancels the dialog, so nothing is posted.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [composer]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- runFlow: ../subflows/open_composer.yaml
+- inputText: "Maestro news check, not posted"
+- tapOn: "News"
+- assertVisible: "Marked as a news report. False news can lead to a ban."
+- tapOn: "Post"
+- assertVisible: "POST AS NEWS?"
+- assertVisible: "Post as news"
+- tapOn: "Cancel"
+- assertNotVisible: "POST AS NEWS?"
+- assertVisible: "Add region"
+- tapOn: "Close"

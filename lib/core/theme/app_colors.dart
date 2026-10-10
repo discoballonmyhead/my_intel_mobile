@@ -27,7 +27,7 @@ class AppColors {
   static const Color darkSurface = Color(0xFF0A0A0A);
   static const Color darkSurface2 = Color(0xFF111111);
   static const Color darkBorder = Color(0xFF1E1E1E);
-  static const Color darkAccent = Color(0xFF4DC8E8);
+  static const Color darkAccent = Color(0xFFC0404A);
   static const Color darkAccent2 = Color(0xFFE84848);
   static const Color darkVerified = Color(0xFF30D880);
   static const Color darkWarn = Color(0xFFE8A020);
@@ -85,7 +85,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     verified: AppColors.darkVerified,
     warn: AppColors.darkWarn,
     muted: AppColors.darkMuted,
-    activeBg: Color(0x0F4DC8E8),
+    activeBg: Color(0x0FC0404A),
     postHover: Color(0x05FFFFFF),
   );
 

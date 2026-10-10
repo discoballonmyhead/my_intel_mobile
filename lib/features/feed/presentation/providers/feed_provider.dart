@@ -9,6 +9,7 @@ import '../../domain/usecases/create_post.dart';
 import '../../domain/usecases/get_feed.dart';
 import '../../domain/usecases/manage_post.dart';
 import '../../domain/usecases/toggle_interaction.dart';
+import '../../../profile/domain/usecases/toggle_follow.dart';
 
 enum FeedStatus { initial, loading, ready, error }
 
@@ -24,7 +25,9 @@ class FeedProvider extends ChangeNotifier {
     required WatchNewPosts watchNewPosts,
     required EditPost editPost,
     required DeletePost deletePost,
+    required GetFollowedUserIds getFollowedUserIds,
   })  : _getFeed = getFeed,
+        _getFollowedUserIds = getFollowedUserIds,
         _editPost = editPost,
         _deletePost = deletePost,
         _createPost = createPost,
@@ -41,6 +44,7 @@ class FeedProvider extends ChangeNotifier {
   final WatchNewPosts _watchNewPosts;
   final EditPost _editPost;
   final DeletePost _deletePost;
+  final GetFollowedUserIds _getFollowedUserIds;
 
   StreamSubscription<Post>? _realtimeSub;
 
@@ -48,6 +52,16 @@ class FeedProvider extends ChangeNotifier {
   FeedStatus _status = FeedStatus.initial;
   Failure? _failure;
   bool _posting = false;
+
+  /// Posts that arrived over realtime while the user was reading. They wait
+  /// behind the "new posts" pill instead of shoving the list around.
+  List<Post> _pending = const [];
+
+  /// Ids just revealed from [_pending], briefly highlighted in the list.
+  Set<int> _freshIds = const {};
+  Timer? _freshTimer;
+
+  Set<String> _followedIds = const {};
 
   /// Bumped on every account change so a load started for the previous user
   /// can't land after the reset.
@@ -58,6 +72,15 @@ class FeedProvider extends ChangeNotifier {
   Failure? get failure => _failure;
   bool get posting => _posting;
   bool get isEmpty => _items.isEmpty && _status == FeedStatus.ready;
+  int get pendingCount => _pending.length;
+  List<String> get pendingAuthors => _pending
+      .map((p) => p.author?.username)
+      .whereType<String>()
+      .toSet()
+      .take(2)
+      .toList();
+  Set<int> get freshIds => _freshIds;
+  Set<String> get followedIds => _followedIds;
 
   Future<void> load({bool silent = false}) async {
     final session = _session;
@@ -66,8 +89,11 @@ class FeedProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    final result = await _getFeed(const NoParams());
+    final (result, followed) =
+        await (_getFeed(const NoParams()), _getFollowedUserIds(const NoParams())).wait;
     if (session != _session) return;
+    _followedIds = (followed.valueOrNull ?? const []).toSet();
+    _pending = const [];
     result.fold(
       (failure) {
         _failure = failure;
@@ -90,6 +116,9 @@ class FeedProvider extends ChangeNotifier {
     final wasLoaded = _status != FeedStatus.initial;
     _session++;
     _items = const [];
+    _pending = const [];
+    _freshIds = const {};
+    _followedIds = const {};
     _failure = null;
     _posting = false;
     _status = FeedStatus.initial;
@@ -102,7 +131,8 @@ class FeedProvider extends ChangeNotifier {
     _realtimeSub ??= _watchNewPosts(const NoParams()).listen((post) {
       // Ignore anything already on screen (our own insert echoing back).
       if (_items.any((item) => item.post.id == post.id)) return;
-      _items = [OriginalPost(post), ..._items];
+      if (_pending.any((p) => p.id == post.id)) return;
+      _pending = [post, ..._pending];
       notifyListeners();
     });
   }
@@ -124,6 +154,7 @@ class FeedProvider extends ChangeNotifier {
         if (!_items.any((item) => item.post.id == post.id)) {
           _items = [OriginalPost(post), ..._items];
         }
+        _pending = _pending.where((p) => p.id != post.id).toList();
         _failure = null;
         notifyListeners();
         return true;
@@ -249,6 +280,21 @@ class FeedProvider extends ChangeNotifier {
 
   /// Drops every card showing [postId] (original and reposts). Also used after
   /// a moderator removes a post from the report screen.
+  /// Moves the waiting posts to the top of the list and highlights them.
+  void revealPending() {
+    if (_pending.isEmpty) return;
+    final fresh = _pending.where((p) => !_items.any((i) => i.post.id == p.id));
+    _items = [...fresh.map(OriginalPost.new), ..._items];
+    _freshIds = _pending.map((p) => p.id).toSet();
+    _pending = const [];
+    _freshTimer?.cancel();
+    _freshTimer = Timer(const Duration(seconds: 3), () {
+      _freshIds = const {};
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
   void removeLocally(int postId) {
     final next = _items.where((item) => item.post.id != postId).toList();
     if (next.length == _items.length) return;
@@ -265,6 +311,7 @@ class FeedProvider extends ChangeNotifier {
   @override
   void dispose() {
     _realtimeSub?.cancel();
+    _freshTimer?.cancel();
     super.dispose();
   }
 }

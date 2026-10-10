@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/user_role.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -289,7 +290,7 @@ class AuthModeSwitch extends StatelessWidget {
             child: Center(
               child: AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 250),
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected
@@ -335,7 +336,7 @@ class AuthModeSwitch extends StatelessWidget {
   }
 }
 
-/// Reader / Reporter choice shown on Create account.
+/// Member / Reporter choice shown on Create account.
 class RolePicker extends StatelessWidget {
   const RolePicker({required this.value, required this.onChanged, super.key});
 
@@ -359,7 +360,7 @@ class RolePicker extends StatelessWidget {
           children: [
             Expanded(
               child: _RoleCard(
-                title: 'Reader',
+                title: 'Member',
                 description: 'Follow, react and discuss intel',
                 icon: Icons.visibility_outlined,
                 selected: value == UserRole.public,
@@ -773,7 +774,7 @@ class _ResendButtonState extends State<ResendButton> {
       style: TextButton.styleFrom(
         foregroundColor: palette.accent,
         disabledForegroundColor: palette.muted,
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
         minimumSize: const Size(44, 44),
       ),
       child: Text(waiting

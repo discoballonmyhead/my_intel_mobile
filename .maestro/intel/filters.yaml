@@ -1,0 +1,23 @@
+# test_plan: intel.filters.sheet, intel.filters.chips
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [intel]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Intel.*"
+- assertVisible: "Search"
+- tapOn: "Filters"
+- assertVisible: "Show .* stor(y|ies)"
+- tapOn: "Geopolitics"
+- tapOn: "High only"
+- takeScreenshot: intel_filter_sheet
+- tapOn: "Show .*"
+- assertVisible: "Filters, on"
+- assertVisible: "Remove Geopolitics"
+- assertVisible: "Remove High only"
+- tapOn: "Remove High only"
+- assertNotVisible: "Remove High only"
+- takeScreenshot: intel_filtered
+- tapOn: "Clear"
+- assertVisible: "Filters"
+- assertNotVisible: "Remove Geopolitics"

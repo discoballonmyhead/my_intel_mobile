@@ -1,0 +1,11 @@
+# test_plan: feed.search.no_results
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [feed]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "Search"
+- inputText: "zqxvkl"
+- extendedWaitUntil:
+    visible: "(?i)no matches"
+    timeout: 10000

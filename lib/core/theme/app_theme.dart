@@ -45,8 +45,7 @@ class AppTheme {
     final scheme = ColorScheme(
       brightness: brightness,
       primary: accent,
-      onPrimary:
-          brightness == Brightness.dark ? AppColors.darkBg : Colors.white,
+      onPrimary: Colors.white,
       secondary: palette.accent2,
       onSecondary: Colors.white,
       error: palette.accent2,
@@ -59,6 +58,8 @@ class AppTheme {
     );
 
     final textTheme = AppTypography.textTheme(text, muted);
+    // Unselected tabs read as white on Void; grey stays on Ghost.
+    final idleTab = brightness == Brightness.dark ? text : muted;
 
     return ThemeData(
       useMaterial3: true,
@@ -170,14 +171,14 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => AppTypography.mono(
             size: 9,
-            color: states.contains(WidgetState.selected) ? accent : muted,
+            color: states.contains(WidgetState.selected) ? accent : idleTab,
             letterSpacing: 0.5,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             size: 20,
-            color: states.contains(WidgetState.selected) ? accent : muted,
+            color: states.contains(WidgetState.selected) ? accent : idleTab,
           ),
         ),
       ),
@@ -185,9 +186,9 @@ class AppTheme {
         backgroundColor: surface,
         indicatorColor: palette.activeBg,
         selectedIconTheme: IconThemeData(color: accent, size: 21),
-        unselectedIconTheme: IconThemeData(color: muted, size: 21),
+        unselectedIconTheme: IconThemeData(color: idleTab, size: 21),
         selectedLabelTextStyle: AppTypography.mono(size: 10, color: accent),
-        unselectedLabelTextStyle: AppTypography.mono(size: 10, color: muted),
+        unselectedLabelTextStyle: AppTypography.mono(size: 10, color: idleTab),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: surface,

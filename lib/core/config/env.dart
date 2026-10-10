@@ -20,6 +20,13 @@ class Env {
   /// Edge function used by the story composer for AI headline/summary work.
   static const String anthropicProxyPath = '/functions/v1/anthropic-proxy';
 
+  /// The web client, used to build shareable links (e.g. a post's
+  /// `/feed?highlight=<id>`, the same link the web app's Share copies).
+  static const String webAppUrl = String.fromEnvironment(
+    'WEB_APP_URL',
+    defaultValue: 'https://signit-app.vercel.app',
+  );
+
   static bool get isConfigured =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
 }

@@ -1,0 +1,13 @@
+# test_plan: profile.page.header, profile.page.tabs
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [profile]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Profile.*"
+- assertVisible: "Edit profile"
+- assertVisible: "(?s).*followers.*"
+- tapOn: "Saved"
+- takeScreenshot: profile_saved
+- tapOn: "Posts"
+- takeScreenshot: profile_posts

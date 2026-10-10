@@ -128,6 +128,7 @@ class Injection {
     sl.registerLazySingleton(() => UpdateProfile(sl()));
     sl.registerLazySingleton(() => ToggleFollow(sl()));
     sl.registerLazySingleton(() => GetFollowStats(sl()));
+    sl.registerLazySingleton(() => GetFollowedUserIds(sl()));
     sl.registerLazySingleton(() => ApplyForOsint(sl()));
     sl.registerLazySingleton(() => GetMyApplication(sl()));
     // Feed
@@ -190,6 +191,7 @@ class Injection {
           watchNewPosts: sl(),
           editPost: sl(),
           deletePost: sl(),
+          getFollowedUserIds: sl(),
         ));
     sl.registerLazySingleton<StoryProvider>(() => StoryProvider(
           getStories: sl(),
