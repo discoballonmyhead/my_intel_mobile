@@ -11,6 +11,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../feed/domain/entities/post.dart';
 import '../../../feed/presentation/widgets/post_card.dart';
+import '../../../feed/presentation/widgets/quote_composer.dart';
 import '../providers/profile_cubit.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/profile_header.dart';
@@ -61,6 +62,12 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Profile updated')));
     }
+  }
+
+  Future<void> _quote(ProfileCubit cubit, Post post) async {
+    final comment = await QuoteComposer.show(context, post,
+        username: cubit.state.profile?.username);
+    if (comment != null) await cubit.toggleRepost(post, quote: comment);
   }
 
   Future<void> _share(Post post) async {
@@ -130,6 +137,8 @@ class _ProfilePageState extends State<ProfilePage> {
       onLike: () => cubit.toggleLike(post),
       onSave: () => cubit.toggleSave(post),
       onRepost: () => cubit.toggleRepost(post),
+      onQuote: () => unawaited(_quote(cubit, post)),
+      myUserId: cubit.state.profile?.id,
       onShare: () => unawaited(_share(post)),
       onAuthorTap: (username) =>
           unawaited(context.push(AppRoutes.channelFor(username))),
