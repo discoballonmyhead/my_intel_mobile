@@ -1,0 +1,17 @@
+# test_plan: auth.create_account.member, auth.create_account.reporter
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [auth]
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "SIGN IN"
+    timeout: 15000
+- tapOn: "Create account"
+- assertVisible: "JOIN AS MEMBER"
+- assertVisible: "Username"
+- assertVisible: "Password \\(8\\+ characters\\)"
+- tapOn: "Reporter.*"
+- assertVisible: "JOIN AS REPORTER"
+- tapOn: "Member.*"
+- assertVisible: "JOIN AS MEMBER"

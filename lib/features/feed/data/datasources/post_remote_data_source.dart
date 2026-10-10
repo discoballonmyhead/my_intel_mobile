@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,6 +18,9 @@ abstract interface class PostRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchPostsByAuthor(String authorId,
       {int limit});
   Future<List<RepostRow>> fetchRecentReposts({int limit});
+
+  /// One user's reposts, newest first (the web profile reads the same table).
+  Future<List<RepostRow>> fetchRepostsByUser(String userId, {int limit});
 
   Future<Set<int>> likedPostIds();
   Future<Set<int>> savedPostIds();
@@ -66,21 +70,27 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
 
   @override
   Future<Map<String, dynamic>?> fetchPost(int postId) async {
+    // `feed_get_post` may return a set of rows (a List) or a single object
+    // depending on how it was declared; asRow accepts both. Casting the List
+    // straight to a Map was the "Something went wrong" on the post screen.
     try {
-      final res =
-          await _service.rpc('feed_get_post', params: {'p_post_id': postId});
-      return res as Map<String, dynamic>?;
-    } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
+      final row = await runRpc(() async => asRow(await _service
+          .rpc<dynamic>('feed_get_post', params: {'p_post_id': postId})));
+      if (row != null) return row;
+    } on ex.ServerException catch (e) {
+      dev.log('feed_get_post failed, falling back to by-ids: $e',
+          name: 'PostRemoteDataSource');
     }
+    // Same RPC the saved-posts list uses, so it is known to work.
+    final rows = await fetchPostsByIds([postId]);
+    return rows.isEmpty ? null : rows.first;
   }
 
   @override
   Future<List<Map<String, dynamic>>> fetchPostsByIds(List<int> ids) async {
     if (ids.isEmpty) return const [];
-    final res = await _service
-        .rpc<List<dynamic>>('feed_get_posts_by_ids', params: {'p_ids': ids});
-    return List<Map<String, dynamic>>.from(res ?? []);
+    return runRpc(() async => asRows(await _service
+        .rpc<dynamic>('feed_get_posts_by_ids', params: {'p_ids': ids})));
   }
 
   @override
@@ -89,6 +99,17 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
     final res = await _service.rpc<List<dynamic>>('feed_get_posts_by_author',
         params: {'p_author_id': authorId, 'p_limit': limit});
     return List<Map<String, dynamic>>.from(res ?? []);
+  }
+
+  @override
+  Future<List<RepostRow>> fetchRepostsByUser(String userId, {int limit = 50}) async {
+    final rows = await _service.content
+        .from('reposts')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return [for (final r in rows) RepostRow.fromJson(r)];
   }
 
   @override
@@ -260,13 +281,14 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
 
   @override
   Future<void> deletePost(int postId) => runRpc(() async {
-        await _service.rpc<dynamic>(PostRpc.delete, params: {'p_post_id': postId});
+        await _service
+            .rpc<dynamic>(PostRpc.delete, params: {'p_post_id': postId});
       });
 
   @override
   Future<List<PostEditModel>> fetchEditHistory(int postId) => runRpc(() async {
-        final res = await _service.rpc<dynamic>(PostRpc.editHistory,
-            params: {'p_post_id': postId});
+        final res = await _service
+            .rpc<dynamic>(PostRpc.editHistory, params: {'p_post_id': postId});
         return asRows(res).map(PostEditModel.fromJson).toList();
       });
 }

@@ -11,6 +11,7 @@ class AuthUserModel extends AuthUser {
     super.username,
     super.emailConfirmed,
     super.createdAt,
+    super.pendingEmail,
   });
 
   factory AuthUserModel.fromSupabase(sb.User user) {
@@ -20,6 +21,7 @@ class AuthUserModel extends AuthUser {
       username: user.userMetadata?['username'] as String?,
       emailConfirmed: user.emailConfirmedAt != null,
       createdAt: DateTime.tryParse(user.createdAt)?.toUtc(),
+      pendingEmail: (user.newEmail?.isNotEmpty ?? false) ? user.newEmail : null,
     );
   }
 }

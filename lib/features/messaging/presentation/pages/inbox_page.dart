@@ -67,6 +67,7 @@ class InboxPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('MESSAGES')),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab-inbox-new-message',
         tooltip: 'New message',
         onPressed: () => context.push(AppRoutes.newMessage),
         child: const Icon(Icons.add_comment_outlined),

@@ -154,7 +154,11 @@ class _ChatPageState extends State<ChatPage> {
       listener: (context, state) {
         if (state.isClosedForMe) {
           context.read<InboxCubit>().refresh();
-          context.canPop() ? context.pop() : context.go(AppRoutes.messages);
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.messages);
+          }
           return;
         }
         final failure = state.actionFailure;

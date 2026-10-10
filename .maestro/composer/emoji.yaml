@@ -1,0 +1,15 @@
+# test_plan: composer.emoji.insert
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [composer]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- runFlow: ../subflows/open_composer.yaml
+- tapOn: "Emoji"
+- assertVisible: "Smileys"
+- tapOn:
+    text: "😀"
+    index: 0
+- assertVisible:
+    text: ".*😀.*"
+- tapOn: "Close"

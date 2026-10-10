@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 
+import '../../../features/feed/domain/usecases/get_post.dart';
 import '../../../features/feed/domain/usecases/manage_post.dart';
 import '../../../features/feed/presentation/cubits/post_edit_history_cubit.dart';
 
@@ -7,6 +8,7 @@ import '../../../features/feed/presentation/cubits/post_edit_history_cubit.dart'
 /// existing feed ones; FeedProvider receives EditPost and DeletePost.
 void registerPostsModule(GetIt sl) {
   sl
+    ..registerLazySingleton(() => GetPost(sl()))
     ..registerLazySingleton(() => EditPost(sl()))
     ..registerLazySingleton(() => DeletePost(sl()))
     ..registerLazySingleton(() => GetPostEditHistory(sl()))

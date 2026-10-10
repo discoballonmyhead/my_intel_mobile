@@ -23,6 +23,12 @@ abstract interface class AuthRemoteDataSource {
   Future<void> sendPasswordReset(String email);
   Future<void> updatePassword(String newPassword);
   Future<void> resendVerification(String email);
+
+  /// Signed-in password change: re-verifies [currentPassword] first.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -30,6 +36,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   final SupabaseService _service;
   static const String _recoveryRedirect = 'io.mint.app://reset-password';
+  static const String _emailChangedRedirect = 'io.mint.app://email-changed';
 
   @override
   Stream<AuthUserModel?> get authStateChanges => _service.auth.onAuthStateChange
@@ -128,6 +135,35 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<void> resendVerification(String email) async {
     try {
       await _service.auth.resend(type: sb.OtpType.signup, email: email);
+    } on sb.AuthException catch (e) {
+      throw ex.AuthException(e.message, code: e.statusCode);
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = _service.auth.currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw const ex.AuthException('Please sign in again to change your password.');
+    }
+
+    // Re-authenticate. This proves the user knows the current password and
+    // also satisfies Supabase's "Secure password change" (recent sign-in).
+    try {
+      await _service.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+    } on sb.AuthException catch (e) {
+      throw ex.AuthException('Your current password is incorrect.',
+          code: e.statusCode);
+    }
+
+    try {
+      await _service.auth.updateUser(sb.UserAttributes(password: newPassword));
     } on sb.AuthException catch (e) {
       throw ex.AuthException(e.message, code: e.statusCode);
     }

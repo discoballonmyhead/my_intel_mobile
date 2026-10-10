@@ -9,3 +9,5 @@ pubspec.lock
 .DS_Store
 env.json
 lib/core/baboinki/
+# Test coverage reports (flutter test --coverage)
+coverage/

@@ -34,5 +34,17 @@ abstract interface class AuthRepository {
 
   Future<Result<void>> updatePassword(String newPassword);
 
+  /// For a signed-in user: verifies the current password, then sets the new one.
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
+
   Future<Result<void>> resendVerification(String email);
+
+  /// Confirms the signed-in user's current password.
+  Future<Result<void>> verifyPassword(String password);
+
+  /// Sends a confirmation link to [newEmail]; the change applies once tapped.
+  Future<Result<void>> changeEmail(String newEmail);
 }

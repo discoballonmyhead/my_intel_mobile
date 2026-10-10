@@ -23,13 +23,65 @@ class GetFollowStats implements UseCase<FollowStats, String> {
       _repository.getFollowStats(targetUserId);
 }
 
-/// Ids of everyone the signed-in user follows (drives the Following filter).
-class GetFollowedUserIds implements UseCase<List<String>, NoParams> {
-  const GetFollowedUserIds(this._repository);
+class SetFollowingParams {
+  const SetFollowingParams({required this.targetUserId, required this.follow});
+  final String targetUserId;
+  final bool follow;
+}
+
+/// Idempotent follow/unfollow — safe against double taps and stale UI state.
+class SetFollowing implements UseCase<FollowStats, SetFollowingParams> {
+  const SetFollowing(this._repository);
 
   final ProfileRepository _repository;
 
   @override
-  Future<Result<List<String>>> call(NoParams params) =>
-      _repository.getFollowedUserIds();
+  Future<Result<FollowStats>> call(SetFollowingParams params) =>
+      _repository.setFollowing(params.targetUserId, params.follow);
+}
+
+class FollowListParams {
+  const FollowListParams({
+    required this.profileId,
+    required this.kind,
+    this.limit = 50,
+    this.offset = 0,
+  });
+  final String profileId;
+  final FollowListKind kind;
+  final int limit;
+  final int offset;
+}
+
+class GetFollowList implements UseCase<List<FollowListEntry>, FollowListParams> {
+  const GetFollowList(this._repository);
+
+  final ProfileRepository _repository;
+
+  @override
+  Future<Result<List<FollowListEntry>>> call(FollowListParams params) =>
+      _repository.getFollowList(
+        params.profileId,
+        params.kind,
+        limit: params.limit,
+        offset: params.offset,
+      );
+}
+
+class FollowListParams {
+  const FollowListParams(this.userId, {required this.followers});
+
+  final String userId;
+  final bool followers;
+}
+
+/// Followers of a user, or the people they follow.
+class GetFollowList implements UseCase<List<Profile>, FollowListParams> {
+  const GetFollowList(this._repository);
+
+  final ProfileRepository _repository;
+
+  @override
+  Future<Result<List<Profile>>> call(FollowListParams params) =>
+      _repository.getFollowList(params.userId, followers: params.followers);
 }

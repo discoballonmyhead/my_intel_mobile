@@ -10,6 +10,7 @@ class AuthUser extends Equatable {
     this.username,
     this.emailConfirmed = false,
     this.createdAt,
+    this.pendingEmail,
   });
 
   final String id;
@@ -18,12 +19,16 @@ class AuthUser extends Equatable {
   final bool emailConfirmed;
   final DateTime? createdAt;
 
+  /// A new address waiting for the user to tap its confirmation link.
+  final String? pendingEmail;
+
   /// Fallback display name used before the profile row loads.
   String get displayName =>
       username ?? (email.contains('@') ? email.split('@').first : email);
 
   @override
-  List<Object?> get props => [id, email, username, emailConfirmed, createdAt];
+  List<Object?> get props =>
+      [id, email, username, emailConfirmed, createdAt, pendingEmail];
 }
 
 /// Result of a sign-up attempt. When email confirmation is on, Supabase

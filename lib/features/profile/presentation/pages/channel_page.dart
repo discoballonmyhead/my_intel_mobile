@@ -47,7 +47,13 @@ class ChannelPage extends StatelessWidget {
     final myId = context.select<AuthCubit, String?>((c) => c.state.user?.id);
     final isStaff = context.select<AccessCubit, bool>((c) => c.state.isStaff);
 
-    return BlocBuilder<ChannelCubit, ChannelState>(
+    return BlocConsumer<ChannelCubit, ChannelState>(
+      listenWhen: (a, b) =>
+          b.followFailure != null && a.followFailure != b.followFailure,
+      listener: (context, state) {
+        AppDialogs.snack(context, state.followFailure!.message);
+        context.read<ChannelCubit>().clearFollowFailure();
+      },
       builder: (context, state) {
         final cubit = context.read<ChannelCubit>();
         final profile = state.profile;
@@ -127,7 +133,21 @@ class ChannelPage extends StatelessWidget {
                                             ),
                                             const SizedBox(
                                                 height: AppSpacing.xs),
-                                            RoleBadge(role: profile.role),
+                                            Wrap(
+                                              spacing: AppSpacing.xs,
+                                              children: [
+                                                RoleBadge(role: profile.role),
+                                                if (state.stats.followsYou &&
+                                                    !isMe)
+                                                  Text(
+                                                    'FOLLOWS YOU',
+                                                    style: AppTypography.mono(
+                                                      size: 9,
+                                                      color: palette.muted,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -169,10 +189,20 @@ class ChannelPage extends StatelessWidget {
                                       _Metric(
                                         label: 'FOLLOWERS',
                                         value: state.stats.followers,
+                                        onTap: () => context.push(
+                                          AppRoutes.followListFor(
+                                              profile.id, 'followers'),
+                                          extra: '@${profile.username}',
+                                        ),
                                       ),
                                       _Metric(
                                         label: 'FOLLOWING',
                                         value: state.stats.following,
+                                        onTap: () => context.push(
+                                          AppRoutes.followListFor(
+                                              profile.id, 'following'),
+                                          extra: '@${profile.username}',
+                                        ),
                                       ),
                                       if (profile.isAnalyst)
                                         _Metric(
@@ -190,7 +220,10 @@ class ChannelPage extends StatelessWidget {
                                 child: AppEmptyView(message: 'No posts yet'),
                               )
                             else
-                              ...state.posts.map((p) => Container(
+                              ...state.posts.map((p) => InkWell(
+                                  onTap: () =>
+                                      context.push(AppRoutes.postFor(p.id)),
+                                  child: Container(
                                     padding:
                                         const EdgeInsets.all(AppSpacing.lg),
                                     decoration: BoxDecoration(
@@ -219,9 +252,22 @@ class ChannelPage extends StatelessWidget {
                                               .textTheme
                                               .bodyMedium,
                                         ),
+                                        if (p.replyCount > 0) ...[
+                                          const SizedBox(
+                                              height: AppSpacing.xs),
+                                          Text(
+                                            '${p.replyCount} COMMENT'
+                                            '${p.replyCount == 1 ? '' : 'S'}',
+                                            style: AppTypography.mono(
+                                              size: 9,
+                                              color: palette.muted,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
-                                  )),
+                                  ),
+                                )),
                           ],
                         ),
                       ),
@@ -233,27 +279,35 @@ class ChannelPage extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
+  const _Metric({required this.label, required this.value, this.onTap});
 
   final String label;
   final int value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$value', style: Theme.of(context).textTheme.titleMedium),
-          Text(
-            label,
-            style: AppTypography.mono(
-              size: 9,
-              color: context.palette.muted,
-              letterSpacing: 1,
-            ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$value', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                label,
+                style: AppTypography.mono(
+                  size: 9,
+                  color: context.palette.muted,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

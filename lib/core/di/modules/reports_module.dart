@@ -27,6 +27,7 @@ void registerReportsModule(GetIt sl) {
     ..registerLazySingleton(() => ModRestorePost(sl()))
     ..registerLazySingleton(() => ModSetPostVisibility(sl()))
     ..registerLazySingleton(() => ModRemoveMessage(sl()))
+    ..registerLazySingleton(() => ModRemoveComment(sl()))
     ..registerLazySingleton(() => WarnUser(sl()))
     ..registerLazySingleton(() => WatchReports(sl()))
     ..registerFactory<ReportCubit>(() => ReportCubit(submitReport: sl()))
@@ -45,6 +46,7 @@ void registerReportsModule(GetIt sl) {
         removePost: sl(),
         restorePost: sl(),
         removeMessage: sl(),
+        removeComment: sl(),
         warnUser: sl(),
         banUser: sl(),
       ),
