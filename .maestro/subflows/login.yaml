@@ -1,0 +1,16 @@
+# Signs in when the app is on the Sign in screen; does nothing if already signed in.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+---
+- runFlow:
+    when:
+      visible: "SIGN IN"
+    commands:
+      - tapOn: "Email"
+      - inputText: ${MINT_EMAIL}
+      - tapOn: "Password"
+      - inputText: ${MINT_PASSWORD}
+      - hideKeyboard
+      - tapOn: "SIGN IN"
+- extendedWaitUntil:
+    visible: "(?s)Feed.*"
+    timeout: 15000

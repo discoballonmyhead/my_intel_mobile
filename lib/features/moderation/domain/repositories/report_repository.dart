@@ -31,6 +31,7 @@ abstract interface class ReportRepository {
   Future<Result<void>> setPostVisibility(
       int postId, PostVisibility visibility, {String? reason});
   Future<Result<void>> removeMessage(int messageId, String reason);
+  Future<Result<void>> removeComment(int commentId, String reason);
   Future<Result<int>> warnUser(String userId, String reason, {int? reportId});
 
   /// Ticks when any report is filed or changes state (staff only via RLS).

@@ -22,6 +22,7 @@ import '../../../moderation/domain/entities/report.dart';
 import '../../../profile/presentation/providers/profile_cubit.dart';
 import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../../comments/presentation/pages/post_detail_page.dart';
 import '../../domain/entities/post.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/composer_sheet.dart';
@@ -262,7 +263,9 @@ class _FeedPageState extends State<FeedPage> {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        tooltip: 'New post',
+        // Unique per tab: all shell tabs stay mounted (indexedStack), so the
+        // default tag would collide with other tabs' FABs on every push.
+        heroTag: 'fab-feed-compose',
         onPressed: provider.posting ? null : _openComposer,
         child: provider.posting
             ? const SizedBox(
@@ -331,66 +334,30 @@ class _FeedPageState extends State<FeedPage> {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Collapses its child (fade + shrink) when [visible] turns false.
-class _CollapsingHeader extends StatelessWidget {
-  const _CollapsingHeader({required this.visible, required this.child});
-
-  final bool visible;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    const duration = Duration(milliseconds: 260);
-    return ClipRect(
-      child: AnimatedAlign(
-        duration: duration,
-        curve: Curves.easeOut,
-        alignment: Alignment.bottomCenter,
-        heightFactor: visible ? 1 : 0,
-        child: AnimatedOpacity(
-          duration: duration,
-          opacity: visible ? 1 : 0,
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterChips extends StatelessWidget {
-  const _FilterChips({required this.value, required this.onChanged});
-
-  final _FeedFilter value;
-  final ValueChanged<_FeedFilter> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-
-    Widget chip(_FeedFilter f, String label) {
-      final selected = value == f;
-      return Expanded(
-        child: Semantics(
-          selected: selected,
-          button: true,
-          child: GestureDetector(
-            onTap: () => onChanged(f),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? onSurface : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: selected ? onSurface : palette.border),
+          FeedStatus.ready => ContentColumn(
+              padded: false,
+              maxWidth: responsive.isExpanded ? 720 : 680,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxxl * 2),
+                itemCount: provider.items.length,
+                itemBuilder: (context, index) {
+                  final item = provider.items[index];
+                  return PostCard(
+                    item: item,
+                    onLike: () => provider.toggleLike(item.post),
+                    onSave: () => provider.toggleSave(item.post),
+                    onRepost: () => provider.toggleRepost(item.post),
+                    onAuthorTap: (username) =>
+                        context.push(AppRoutes.channelFor(username)),
+                    onMore: () => _openActions(item.post),
+                    onTap: () =>
+                        context.push(AppRoutes.postFor(item.post.id)),
+                    onComment: () => context.push(
+                        AppRoutes.postFor(item.post.id),
+                        extra: const PostDetailArgs(focusComposer: true)),
+                  );
+                },
               ),
               child: Text(
                 label,

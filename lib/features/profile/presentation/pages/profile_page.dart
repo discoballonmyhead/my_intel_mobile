@@ -37,15 +37,74 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  bool _showSaved = false;
-  bool _searching = false;
-  final _query = TextEditingController();
+/// Opens [location]; when the user comes back, reloads this profile so
+/// follows, edits, deletes and saves made on that screen show up here.
+Future<void> _pushThenRefresh(
+  BuildContext context,
+  String location, {
+  Object? extra,
+}) async {
+  final cubit = context.read<ProfileCubit>();
+  await context.push(location, extra: extra);
+  if (!cubit.isClosed) await cubit.refresh();
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.profile});
+
+  final Profile profile;
 
   @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final roleColor = RoleBadge.colorOf(context, profile.role);
+    final joined = profile.createdAt == null
+        ? null
+        : 'JOINED ${DateFormat('MMM yyyy').format(profile.createdAt!.toLocal()).toUpperCase()}';
+    final meta = AppTypography.mono(size: 10, color: palette.muted, letterSpacing: 1);
+
+    return Column(
+      children: [
+        UserAvatar(name: profile.username, radius: 44),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          profile.username,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: roleColor, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(profile.role.label, style: meta.copyWith(color: roleColor)),
+            if (joined != null) Text('  ·  $joined', style: meta),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _TextLink(
+              label: 'Edit profile',
+              onPressed: () => _EditUsernameDialog.show(context, profile.username),
+            ),
+            Text('|', style: TextStyle(color: palette.border)),
+            _TextLink(
+              label: 'View channel',
+              onPressed: () => _pushThenRefresh(
+                  context, AppRoutes.channelFor(profile.username)),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   void _closeSearch() {
@@ -56,19 +115,48 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  Future<void> _edit(String username) async {
-    final saved = await EditProfileSheet.show(context, username);
-    if (saved && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Profile updated')));
-    }
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _Stat(
+          value: stats.followers,
+          label: 'FOLLOWERS',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.followers.value),
+            extra: '@${profile.username}',
+          ),
+        ),
+        _Stat(
+          value: stats.following,
+          label: 'FOLLOWING',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.following.value),
+            extra: '@${profile.username}',
+          ),
+        ),
+        _Stat(value: profile.auraPoints, label: 'AURA'),
+        if (profile.isAnalyst)
+          _Stat(
+            value: profile.score,
+            label: 'CRED',
+            labelColor: _bandColor(palette, profile.band),
+          ),
+      ],
+    );
   }
 
-  Future<void> _quote(ProfileCubit cubit, Post post) async {
-    final comment = await QuoteComposer.show(context, post,
-        username: cubit.state.profile?.username);
-    if (comment != null) await cubit.toggleRepost(post, quote: comment);
-  }
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.value,
+    required this.label,
+    this.labelColor,
+    this.onTap,
+  });
 
   Future<void> _share(Post post) async {
     await Clipboard.setData(
@@ -78,52 +166,33 @@ class _ProfilePageState extends State<ProfilePage> {
         .showSnackBar(const SnackBar(content: Text('Link copied.')));
   }
 
+  /// Followers / following open the people list.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: BlocBuilder<ProfileCubit, ProfileState>(
-          builder: (context, state) {
-            final cubit = context.read<ProfileCubit>();
-            final profile = state.profile;
-            return Column(
-              children: [
-                _TopBar(
-                  searching: _searching,
-                  query: _query,
-                  enabled: profile != null,
-                  onSearch: () => setState(() => _searching = true),
-                  onCancel: _closeSearch,
-                  onChanged: (_) => setState(() {}),
-                ),
-                Expanded(
-                  child: profile == null
-                      ? (state.failure != null && !state.isLoading
-                          ? Center(
-                              child: SoftMessage(
-                                icon: Icons.wifi_off_rounded,
-                                title: 'Can’t load your profile',
-                                body: 'Check your connection and try again.',
-                                action: 'Try again',
-                                onAction: cubit.refresh,
-                              ),
-                            )
-                          : const _ProfileSkeleton())
-                      : RefreshIndicator(
-                          onRefresh: cubit.refresh,
-                          child: ContentColumn(
-                            padded: false,
-                            child: _searching
-                                ? _results(context, state, cubit)
-                                : _profile(context, state, cubit),
-                          ),
-                        ),
-                ),
-              ],
-            );
-          },
+    final content = Column(
+      children: [
+        Text('$value', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          label,
+          style: AppTypography.mono(
+            size: 9,
+            color: labelColor ?? context.palette.muted,
+            letterSpacing: 1,
+          ),
         ),
+      ),
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        child: content,
       ),
     );
   }
@@ -409,16 +478,156 @@ class _ProfileSkeleton extends StatelessWidget {
               ),
             ],
           ),
-        );
-    return ListView(
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 32),
-        Center(
-          child: Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(color: block, shape: BoxShape.circle)),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? onSurface : context.palette.muted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostRow extends StatelessWidget {
+  const _PostRow({required this.post, required this.showAuthor});
+
+  final Post post;
+  final bool showAuthor;
+
+  @override
+  Widget build(BuildContext context) {
+    final author = post.author?.username;
+    final time = post.isEdited
+        ? '${post.createdAt.timeAgo} · edited'
+        : post.createdAt.timeAgo;
+    final metaStyle = AppTypography.mono(size: 10, color: context.palette.muted);
+
+    // Tap the row → the post with its comments; tap "@author" (Saved tab)
+    // → that person's channel.
+    return InkWell(
+      onTap: () => _pushThenRefresh(context, AppRoutes.postFor(post.id)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showAuthor && author != null)
+              Row(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        _pushThenRefresh(context, AppRoutes.channelFor(author)),
+                    child: Text('@$author',
+                        style: metaStyle.copyWith(
+                            color: context.palette.accent)),
+                  ),
+                  Text(' · $time', style: metaStyle),
+                ],
+              )
+            else
+              Text(time, style: metaStyle),
+            const SizedBox(height: AppSpacing.xs),
+            Text(post.body, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditUsernameDialog extends StatefulWidget {
+  const _EditUsernameDialog({required this.initial});
+
+  final String initial;
+
+  static Future<void> show(BuildContext context, String current) {
+    final cubit = context.read<ProfileCubit>();
+    return showDialog<void>(
+      context: context,
+      builder: (_) => BlocProvider.value(
+        value: cubit,
+        child: _EditUsernameDialog(initial: current),
+      ),
+    );
+  }
+
+  @override
+  State<_EditUsernameDialog> createState() => _EditUsernameDialogState();
+}
+
+class _EditUsernameDialogState extends State<_EditUsernameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _controller.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Username can’t be empty.');
+      return;
+    }
+    if (name == widget.initial) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final cubit = context.read<ProfileCubit>();
+    final ok = await cubit.updateUsername(name);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _error = cubit.state.failure?.message ?? 'Could not update username.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit profile'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        enabled: !_saving,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _save(),
+        decoration: InputDecoration(
+          labelText: 'Username',
+          helperText: 'Your channel link changes too.',
+          errorText: _error,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
         ),
         const SizedBox(height: 18),
         Center(child: bar(160, 20)),

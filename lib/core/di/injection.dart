@@ -55,6 +55,9 @@ import '../network/supabase_service.dart';
 import '../responsive/responsive_provider.dart';
 import '../theme/theme_provider.dart';
 import 'modules/account_module.dart';
+import 'modules/auth_extras_module.dart';
+import 'modules/comments_module.dart';
+import 'modules/social_module.dart';
 import 'modules/admin_module.dart';
 import 'modules/messaging_module.dart';
 import 'modules/posts_module.dart';
@@ -235,10 +238,13 @@ class Injection {
           getProfileByUsername: sl(),
           getFollowStats: sl(),
           getPostsByAuthor: sl(),
-          toggleFollow: sl(),
+          setFollowing: sl(),
         ));
 
     // ── New feature modules ──
+    registerAuthExtrasModule(sl);
+    registerSocialModule(sl);
+    registerCommentsModule(sl);
     registerAccountModule(sl);
     registerPostsModule(sl);
     registerMessagingModule(sl);

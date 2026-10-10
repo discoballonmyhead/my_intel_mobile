@@ -16,6 +16,16 @@ abstract interface class ProfileRepository {
   /// Follows if not following, unfollows otherwise. Returns the new state.
   Future<Result<FollowStats>> toggleFollow(String targetUserId);
 
+  /// Idempotent follow (true) / unfollow (false). Returns fresh stats.
+  Future<Result<FollowStats>> setFollowing(String targetUserId, bool follow);
+
+  Future<Result<List<FollowListEntry>>> getFollowList(
+    String profileId,
+    FollowListKind kind, {
+    int limit = 50,
+    int offset = 0,
+  });
+
   Future<Result<List<String>>> getFollowedUserIds();
 
   Future<Result<List<Profile>>> getFollowList(String userId,

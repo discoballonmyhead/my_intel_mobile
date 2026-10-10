@@ -22,8 +22,7 @@ class PostCard extends StatelessWidget {
     this.onTap,
     this.onAuthorTap,
     this.onMore,
-    this.myUserId,
-    this.highlight = false,
+    this.onComment,
     super.key,
   });
 
@@ -49,13 +48,8 @@ class PostCard extends StatelessWidget {
   /// Opens the ⋯ menu (edit, delete, report, moderate).
   final VoidCallback? onMore;
 
-  /// Briefly tints the post, e.g. right after "new posts" are revealed.
-  final bool highlight;
-
-  /// News posts carry the NEWS badge for this long, as on the web app.
-  static const Duration newsBadgeWindow = Duration(hours: 48);
-
-  static const double _avatarRadius = 20;
+  /// Opens the comments (post detail) screen.
+  final VoidCallback? onComment;
 
   Post get post => item.post;
 
@@ -82,205 +76,58 @@ class PostCard extends StatelessWidget {
               Colors.transparent, palette.accent.withValues(alpha: 0.08), t),
           child: child,
         ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          decoration: BoxDecoration(
-            border: Border(
-                bottom:
-                    BorderSide(color: palette.border.withValues(alpha: 0.6))),
-          ),
-          child: content,
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: palette.border)),
         ),
-      ),
-    );
-  }
-
-  /// A normal post: avatar, then name, text, media and actions.
-  Widget _original(BuildContext context, AppPalette palette, Color onSurface) =>
-      _PostBlock(
-        post: post,
-        avatarRadius: _avatarRadius,
-        onLike: onLike,
-        onSave: onSave,
-        onRepost: onRepost,
-        onQuote: onQuote,
-        onShare: onShare,
-        onReply: onTap,
-        onAuthorTap: onAuthorTap,
-        onMore: onMore,
-      );
-
-  /// A repost without a comment: "You reposted · 2h", then the original
-  /// post in a soft card.
-  Widget _repost(
-      BuildContext context, RepostedPost repost, AppPalette palette) {
-    final mine = myUserId != null && repost.reposter?.id == myUserId;
-    final who = mine ? 'You' : (repost.reposter?.username ?? 'Someone');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            UserAvatar(name: repost.reposter?.username, radius: 12),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text.rich(
-                TextSpan(children: [
-                  TextSpan(
-                      text: who,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  TextSpan(
-                      text: ' reposted · ${repost.repostedAt.timeAgo}',
-                      style: TextStyle(color: palette.muted)),
-                ]),
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: _PostBlock(
-            post: post,
-            avatarRadius: 16,
-            onLike: onLike,
-            onSave: onSave,
-            onRepost: onRepost,
-            onQuote: onQuote,
-            onShare: onShare,
-            onReply: onTap,
-            onAuthorTap: onAuthorTap,
-            onMore: onMore,
-          ),
-        ),
-        const SizedBox(height: 6),
-      ],
-    );
-  }
-
-  /// A repost with a comment reads as the reposter's own post: their
-  /// comment, then the original in a soft card, then its actions.
-  Widget _withComment(BuildContext context, RepostedPost repost,
-      AppPalette palette, Color onSurface) {
-    final reposter = repost.reposter;
-    final muted = TextStyle(fontSize: 13, color: palette.muted);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: reposter == null
-              ? null
-              : () => onAuthorTap?.call(reposter.username),
-          child: UserAvatar(name: reposter?.username, radius: _avatarRadius),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 26,
+            if (item case RepostedPost(:final reposter)) ...[
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: reposter == null
+                    ? null
+                    : () => onAuthorTap?.call(reposter.username),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Text(reposter?.username ?? 'unknown',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700)),
+                    Icon(Icons.repeat_rounded, size: 12, color: palette.muted),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '${reposter?.username ?? 'someone'} reposted',
+                      style: AppTypography.mono(size: 9, color: palette.muted),
                     ),
-                    const SizedBox(width: 8),
-                    Text(repost.repostedAt.timeAgo, style: muted),
                   ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(repost.quote!, style: _bodyStyle(onSurface)),
-              const SizedBox(height: 10),
-              QuotedPostPreview(post: post, onTap: onTap),
-              const SizedBox(height: 2),
-              _ActionBar(
-                post: post,
-                onLike: onLike,
-                onSave: onSave,
-                onRepost: onRepost,
-                onQuote: onQuote,
-                onShare: onShare,
-                onReply: onTap,
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            _Header(
+              post: post,
+              item: item,
+              onAuthorTap: onAuthorTap,
+              onMore: onMore,
+            ),
+            if (post.isUnderReview || post.isRemoved) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                post.isRemoved
+                    ? 'REMOVED BY MODERATORS · ONLY YOU CAN SEE THIS'
+                    : 'UNDER REVIEW',
+                style: AppTypography.mono(
+                  size: 9,
+                  color: post.isRemoved ? palette.accent2 : palette.warn,
+                ),
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  static TextStyle _bodyStyle(Color color) =>
-      TextStyle(fontSize: 15, height: 1.45, color: color);
-}
-
-/// Avatar, then name, review note, text, media, meta line and actions.
-class _PostBlock extends StatelessWidget {
-  const _PostBlock({
-    required this.post,
-    required this.avatarRadius,
-    this.onLike,
-    this.onSave,
-    this.onRepost,
-    this.onQuote,
-    this.onShare,
-    this.onReply,
-    this.onAuthorTap,
-    this.onMore,
-  });
-
-  final Post post;
-  final double avatarRadius;
-  final VoidCallback? onLike;
-  final VoidCallback? onSave;
-  final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
-  final VoidCallback? onShare;
-  final VoidCallback? onReply;
-  final ValueChanged<String>? onAuthorTap;
-  final VoidCallback? onMore;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: post.author == null
-              ? null
-              : () => onAuthorTap?.call(post.author!.username),
-          child: UserAvatar(name: post.author?.username, radius: avatarRadius),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
-              if (post.isUnderReview || post.isRemoved) ...[
-                const SizedBox(height: 4),
-                Text(
-                  post.isRemoved
-                      ? 'Removed by moderators · only you can see this'
-                      : 'Under review',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: post.isRemoved ? palette.accent2 : palette.warn,
-                  ),
+            if (item case RepostedPost(:final quote) when quote != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(quote, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  border: Border.all(color: palette.border),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ],
               const SizedBox(height: 4),
@@ -357,7 +204,15 @@ class QuotedPostPreview extends StatelessWidget {
                 _PostImage(url: post.mediaUrl!),
               ],
             ],
-          ),
+            const SizedBox(height: AppSpacing.md),
+            _ActionBar(
+              post: post,
+              onLike: onLike,
+              onSave: onSave,
+              onRepost: onRepost,
+              onComment: onComment ?? onTap,
+            ),
+          ],
         ),
       ),
     );
@@ -446,109 +301,65 @@ class _Header extends StatelessWidget {
             PostCard.newsBadgeWindow;
     final muted = TextStyle(fontSize: 13, color: palette.muted);
 
-    return SizedBox(
-      height: 26,
-      child: Row(
-        children: [
-          // Name, role icon and NEWS badge take the left; time and ⋯ stay
-          // pinned to the right edge whatever the name's length.
-          Expanded(
+    // Avatar AND name open the profile. Previously only the 32px avatar did,
+    // so tapping the username fell through to the card's tap (post detail).
+    final openProfile = author == null || onAuthorTap == null
+        ? null
+        : () => onAuthorTap!.call(author.username);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: openProfile,
             child: Row(
               children: [
-                Flexible(
-                  child: GestureDetector(
-                    onTap: author == null
-                        ? null
-                        : () => onAuthorTap?.call(author.username),
-                    child: Text(
-                      author?.username ?? 'unknown',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700),
-                    ),
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: palette.surface2,
+                  child: Text(
+                    (author?.username ?? '?').characters.first.toUpperCase(),
+                    style: AppTypography.mono(size: 12, color: palette.accent),
                   ),
                 ),
-                if (author != null) ...[
-                  const SizedBox(width: 5),
-                  RoleBadge(role: author.role, compact: true),
-                ],
-                if (isNews) ...[
-                  const SizedBox(width: 7),
-                  const _NewsBadge(),
-                ],
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              author?.username ?? 'unknown',
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (author != null) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            RoleBadge(role: author.role, compact: true),
+                          ],
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            post.isEdited
+                                ? '${post.createdAt.timeAgo} · edited'
+                                : post.createdAt.timeAgo,
+                            style: AppTypography.mono(size: 9, color: palette.muted),
+                          ),
+                        ],
+                      ),
+                      if (author != null && author.isAnalyst)
+                        Text(
+                          'CRED ${author.score}',
+                          style: AppTypography.mono(size: 9, color: palette.muted),
+                        ),
+                    ],
+                  ),
+                ),
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-              post.isEdited
-                  ? '${post.createdAt.timeAgo} · edited'
-                  : post.createdAt.timeAgo,
-              style: muted),
-          if (onMore != null)
-            SizedBox(
-              width: 34,
-              height: 26,
-              child: IconButton(
-                tooltip: 'More',
-                padding: EdgeInsets.zero,
-                icon: Icon(Icons.more_horiz_rounded,
-                    size: 20, color: palette.muted),
-                onPressed: onMore,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NewsBadge extends StatelessWidget {
-  const _NewsBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final green = context.palette.verified;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: green.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text('NEWS',
-          style: AppTypography.mono(
-              size: 8,
-              weight: FontWeight.w700,
-              color: green,
-              letterSpacing: 1)),
-    );
-  }
-}
-
-class _PostImage extends StatelessWidget {
-  const _PostImage({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border.withValues(alpha: 0.7)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: CachedNetworkImage(
-            imageUrl: url,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: palette.surface2),
-            errorWidget: (_, __, ___) => Container(
-              color: palette.surface2,
-              child: Icon(Icons.broken_image_outlined, color: palette.muted),
             ),
           ),
         ),
@@ -597,19 +408,14 @@ class _ActionBar extends StatelessWidget {
     this.onLike,
     this.onSave,
     this.onRepost,
-    this.onQuote,
-    this.onShare,
-    this.onReply,
-    this.compact = false,
+    this.onComment,
   });
 
   final Post post;
   final VoidCallback? onLike;
   final VoidCallback? onSave;
   final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
-  final VoidCallback? onShare;
-  final VoidCallback? onReply;
+  final VoidCallback? onComment;
 
   /// Narrower buttons for posts shown inside a card.
   final bool compact;
@@ -619,71 +425,37 @@ class _ActionBar extends StatelessWidget {
     final palette = context.palette;
     final w = compact ? 48.0 : 60.0;
 
-    return Transform.translate(
-      offset: const Offset(-10, 0),
-      child: Row(
-        children: [
-          _ActionButton(
-            minWidth: w,
-            icon: post.liked
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
-            count: post.likes,
-            active: post.liked,
-            activeColor: palette.accent2,
-            tooltip: post.liked ? 'Unlike' : 'Like',
-            onTap: onLike,
-          ),
-          _ActionButton(
-            minWidth: w,
-            icon: Icons.mode_comment_outlined,
-            count: post.replyCount,
-            tooltip: 'Replies',
-            onTap: onReply,
-          ),
-          Builder(
-            builder: (buttonContext) => _ActionButton(
-              minWidth: w,
-              icon: Icons.repeat_rounded,
-              count: post.repostCount,
-              active: post.reposted,
-              activeColor: palette.verified,
-              tooltip: post.reposted ? 'Undo repost' : 'Repost',
-              onTap: onRepost == null
-                  ? null
-                  : onQuote == null
-                      ? onRepost
-                      : () => _showRepostMenu(
-                          buttonContext, post, onRepost!, onQuote!),
-            ),
-          ),
-          const Spacer(),
-          Transform.translate(
-            offset: const Offset(20, 0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ActionButton(
-                  minWidth: w,
-                  icon: Icons.share_outlined,
-                  tooltip: 'Share',
-                  onTap: onShare,
-                ),
-                _ActionButton(
-                  minWidth: w,
-                  icon: post.saved
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
-                  active: post.saved,
-                  activeColor: palette.accent,
-                  tooltip: post.saved ? 'Unsave' : 'Save',
-                  onTap: onSave,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        _ActionButton(
+          icon: post.liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          label: post.likes,
+          active: post.liked,
+          activeColor: palette.accent2,
+          onTap: onLike,
+        ),
+        const SizedBox(width: AppSpacing.xl),
+        _ActionButton(
+          icon: Icons.mode_comment_outlined,
+          label: post.replyCount,
+          onTap: onComment,
+        ),
+        const SizedBox(width: AppSpacing.xl),
+        _ActionButton(
+          icon: Icons.repeat_rounded,
+          label: post.repostCount,
+          active: post.reposted,
+          activeColor: palette.verified,
+          onTap: onRepost,
+        ),
+        const Spacer(),
+        _ActionButton(
+          icon: post.saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          active: post.saved,
+          activeColor: palette.accent,
+          onTap: onSave,
+        ),
+      ],
     );
   }
 }
