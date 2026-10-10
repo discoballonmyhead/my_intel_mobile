@@ -261,7 +261,7 @@ class ProfileCubit extends Cubit<ProfileState> {
     if (!isClosed) emit(state.copyWith(savedPosts: saved));
   }
 
-  Future<void> toggleRepost(Post post, {String? quote}) => _optimistic(
+  Future<void> toggleRepost(Post post) => _optimistic(
         post.copyWith(
           reposted: !post.reposted,
           repostCount: post.reposted
@@ -271,7 +271,7 @@ class ProfileCubit extends Cubit<ProfileState> {
         post,
         _toggleRepost == null
             ? null
-            : () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
+            : () => _toggleRepost(ToggleRepostParams(post: post)),
       );
 
   /// Shows [preview] straight away, then the server's answer; restores

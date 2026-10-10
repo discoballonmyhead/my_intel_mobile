@@ -11,7 +11,6 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../feed/domain/entities/post.dart';
 import '../../../feed/presentation/widgets/post_card.dart';
-import '../../../feed/presentation/widgets/quote_composer.dart';
 import '../providers/profile_cubit.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/profile_header.dart';
@@ -55,13 +54,10 @@ class _Header extends StatelessWidget {
   final Profile profile;
 
   @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final roleColor = RoleBadge.colorOf(context, profile.role);
-    final joined = profile.createdAt == null
-        ? null
-        : 'JOINED ${DateFormat('MMM yyyy').format(profile.createdAt!.toLocal()).toUpperCase()}';
-    final meta = AppTypography.mono(size: 10, color: palette.muted, letterSpacing: 1);
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
     return Column(
       children: [
@@ -107,13 +103,77 @@ class _Header extends StatelessWidget {
     );
   }
 
-  void _closeSearch() {
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _searching = false;
-      _query.clear();
-    });
+  Future<void> _edit(String username) async {
+    final saved = await EditProfileSheet.show(context, username);
+    if (saved && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Profile updated')));
+    }
   }
+
+  Future<void> _share(Post post) async {
+    await Clipboard.setData(
+        ClipboardData(text: '${Env.webAppUrl}/feed?highlight=${post.id}'));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Link copied.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: BlocBuilder<ProfileCubit, ProfileState>(
+          builder: (context, state) {
+            final cubit = context.read<ProfileCubit>();
+            final profile = state.profile;
+            return Column(
+              children: [
+                _TopBar(
+                  searching: _searching,
+                  query: _query,
+                  enabled: profile != null,
+                  onSearch: () => setState(() => _searching = true),
+                  onCancel: _closeSearch,
+                  onChanged: (_) => setState(() {}),
+                ),
+                Expanded(
+                  child: profile == null
+                      ? (state.failure != null && !state.isLoading
+                          ? Center(
+                              child: SoftMessage(
+                                icon: Icons.wifi_off_rounded,
+                                title: 'Can’t load your profile',
+                                body: 'Check your connection and try again.',
+                                action: 'Try again',
+                                onAction: cubit.refresh,
+                              ),
+                            )
+                          : const _ProfileSkeleton())
+                      : RefreshIndicator(
+                          onRefresh: cubit.refresh,
+                          child: ContentColumn(
+                            padded: false,
+                            child: _searching
+                                ? _results(context, state, cubit)
+                                : _profile(context, state, cubit),
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+class _Stats extends StatelessWidget {
+  const _Stats({required this.profile, required this.stats});
+
+  final Profile profile;
+  final FollowStats stats;
 
   @override
   Widget build(BuildContext context) {
@@ -173,15 +233,12 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = Column(
       children: [
-        Text('$value', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          label,
-          style: AppTypography.mono(
-            size: 9,
-            color: labelColor ?? context.palette.muted,
-            letterSpacing: 1,
-          ),
+        ProfileHeader(
+          profile: profile,
+          stats: state.stats,
+          onFollowers: () => context.push(AppRoutes.followers),
+          onFollowing: () => context.push(AppRoutes.following),
+          onEdit: () => _edit(profile.username),
         ),
       ),
     );
@@ -478,14 +535,16 @@ class _ProfileSkeleton extends StatelessWidget {
               ),
             ],
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? onSurface : context.palette.muted,
-            ),
-          ),
+        );
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 32),
+        Center(
+          child: Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(color: block, shape: BoxShape.circle)),
         ),
       ),
     );

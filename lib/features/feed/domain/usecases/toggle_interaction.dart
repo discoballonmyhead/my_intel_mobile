@@ -36,3 +36,21 @@ class ToggleRepost implements UseCase<Post, ToggleRepostParams> {
   Future<Result<Post>> call(ToggleRepostParams params) =>
       _repository.toggleRepost(params.post, quote: params.quote);
 }
+
+class VotePollParams {
+  const VotePollParams({required this.post, required this.optionId});
+  final Post post;
+  final int optionId;
+}
+
+/// Votes are final, so this is not a toggle; it lives here with the other
+/// per-post interactions.
+class VotePoll implements UseCase<Post, VotePollParams> {
+  const VotePoll(this._repository);
+
+  final PostRepository _repository;
+
+  @override
+  Future<Result<Post>> call(VotePollParams params) =>
+      _repository.votePoll(params.post, params.optionId);
+}

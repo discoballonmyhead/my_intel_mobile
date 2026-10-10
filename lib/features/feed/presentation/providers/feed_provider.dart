@@ -24,6 +24,7 @@ class FeedProvider extends ChangeNotifier {
     required ToggleLike toggleLike,
     required ToggleSave toggleSave,
     required ToggleRepost toggleRepost,
+    required VotePoll votePoll,
     required WatchNewPosts watchNewPosts,
     required EditPost editPost,
     required DeletePost deletePost,
@@ -38,15 +39,15 @@ class FeedProvider extends ChangeNotifier {
         _toggleLike = toggleLike,
         _toggleSave = toggleSave,
         _toggleRepost = toggleRepost,
-        _watchNewPosts = watchNewPosts {
-    _listenForUpdates();
-  }
+        _votePoll = votePoll,
+        _watchNewPosts = watchNewPosts;
 
   final GetFeed _getFeed;
   final CreatePost _createPost;
   final ToggleLike _toggleLike;
   final ToggleSave _toggleSave;
   final ToggleRepost _toggleRepost;
+  final VotePoll _votePoll;
   final WatchNewPosts _watchNewPosts;
   final EditPost _editPost;
   final DeletePost _deletePost;
@@ -230,6 +231,26 @@ class FeedProvider extends ChangeNotifier {
           .toList();
     }
     notifyListeners();
+  }
+
+  /// Votes are final, so this waits for the server instead of guessing:
+  /// the poll's new counts replace it on every card showing the post.
+  /// Returns false with [failure] set on error.
+  Future<bool> votePoll(Post post, int optionId) async {
+    final result =
+        await _votePoll(VotePollParams(post: post, optionId: optionId));
+    return result.fold(
+      (Failure failure) {
+        _failure = failure;
+        notifyListeners();
+        return false;
+      },
+      (Post updated) {
+        _replacePost(updated);
+        notifyListeners();
+        return true;
+      },
+    );
   }
 
   /// Swap in [preview] straight away, then reconcile with the server's answer.

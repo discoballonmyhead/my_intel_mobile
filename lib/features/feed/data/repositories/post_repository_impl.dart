@@ -12,7 +12,14 @@ import '../../domain/entities/post.dart';
 import '../../domain/entities/post_edit.dart';
 import '../../domain/repositories/post_repository.dart';
 import '../datasources/post_remote_data_source.dart';
+import '../models/post_extras_model.dart';
 import '../models/post_model.dart';
+
+/// Attachments and poll for a batch of posts, keyed by post id.
+typedef _Extras = ({
+  Map<int, List<PostAttachment>> attachments,
+  Map<int, PostPoll> polls,
+});
 
 /// Assembles the feed.
 ///
@@ -55,6 +62,7 @@ class PostRepositoryImpl implements PostRepository {
         ...repostRows.map((r) => r.userId),
       ];
       final profiles = await _profiles.profilesByIds(authorIds);
+      final extras = await _extrasFor([...rows, ...repostedRows]);
 
       PostModel build(Map<String, dynamic> row) {
         final id = (row['id'] as num).toInt();
@@ -64,6 +72,8 @@ class PostRepositoryImpl implements PostRepository {
           liked: liked.contains(id),
           saved: saved.contains(id),
           reposted: reposted.contains(id),
+          attachments: extras.attachments[id] ?? const [],
+          poll: extras.polls[id],
         );
       }
 
@@ -118,6 +128,8 @@ class PostRepositoryImpl implements PostRepository {
         liked: liked.contains(postId),
         saved: saved.contains(postId),
         reposted: reposted.contains(postId),
+        attachments: extras.attachments[postId] ?? const [],
+        poll: extras.polls[postId],
       );
     });
   }
@@ -130,57 +142,16 @@ class PostRepositoryImpl implements PostRepository {
           .where(_isVisible)
           .toList();
       final profiles = await _profiles.profilesByIds([authorId]);
-      final (liked, saved, reposted) = await _viewerMarks();
+      final extras = await _extrasFor(rows);
       return rows.map((row) {
         final id = (row['id'] as num).toInt();
-        return PostModel.fromJson(row,
-            author: profiles[authorId],
-            liked: liked.contains(id),
-            saved: saved.contains(id),
-            reposted: reposted.contains(id));
+        return PostModel.fromJson(
+          row,
+          author: profiles[authorId],
+          attachments: extras.attachments[id] ?? const [],
+          poll: extras.polls[id],
+        );
       }).toList();
-    });
-  }
-
-  /// The viewer's likes, saves and reposts, so cards outside the Feed show
-  /// (and toggle) the right state.
-  Future<(Set<int>, Set<int>, Set<int>)> _viewerMarks() async => (
-        await _remote.likedPostIds(),
-        await _remote.savedPostIds(),
-        await _remote.repostedPostIds(),
-      );
-
-  @override
-  Future<Result<List<RepostedPost>>> getRepostsByUser(String userId) {
-    return guard(() async {
-      final reposts = await _remote.fetchRepostsByUser(userId);
-      if (reposts.isEmpty) return <RepostedPost>[];
-      final rows = (await _remote.fetchPostsByIds(
-              reposts.map((r) => r.postId).toSet().toList()))
-          .where(_isVisible)
-          .toList();
-      final byId = {for (final r in rows) (r['id'] as num).toInt(): r};
-      final profiles = await _profiles.profilesByIds([
-        userId,
-        ...rows.map((r) => r['author_id'] as String?),
-      ]);
-      final (liked, saved, reposted) = await _viewerMarks();
-      return [
-        for (final r in reposts)
-          // Skip reposts of your own posts: the original is already listed.
-          if (byId[r.postId] case final row? when row['author_id'] != userId)
-            RepostedPost(
-              PostModel.fromJson(row,
-                  author: profiles[row['author_id']],
-                  liked: liked.contains(r.postId),
-                  saved: saved.contains(r.postId),
-                  reposted: reposted.contains(r.postId)),
-              repostId: r.id,
-              repostedAt: r.createdAt,
-              reposter: profiles[userId],
-              quote: r.quoteBody,
-            ),
-      ];
     });
   }
 
@@ -198,16 +169,14 @@ class PostRepositoryImpl implements PostRepository {
       return ids
           .map((id) => byId[id])
           .whereType<Map<String, dynamic>>()
-          .map((row) {
-            final id = (row['id'] as num).toInt();
-            return PostModel.fromJson(
-              row,
-              author: profiles[row['author_id']],
-              liked: liked.contains(id),
-              saved: true,
-              reposted: reposted.contains(id),
-            );
-          })
+          .map((row) => PostModel.fromJson(
+                row,
+                author: profiles[row['author_id']],
+                saved: true,
+                attachments:
+                    extras.attachments[(row['id'] as num).toInt()] ?? const [],
+                poll: extras.polls[(row['id'] as num).toInt()],
+              ))
           .toList();
     });
   }
@@ -219,6 +188,8 @@ class PostRepositoryImpl implements PostRepository {
     String? tag,
     String? mediaUrl,
     String postType = 'general',
+    List<UploadedAttachment> attachments = const [],
+    PollDraft? poll,
   }) {
     return guard(() async {
       final userId = _service.currentUserId;
@@ -231,14 +202,19 @@ class PostRepositoryImpl implements PostRepository {
       final resolvedTag =
           tag ?? RegExp(r'#(\w+)').firstMatch(body)?.group(1)?.toUpperCase();
 
-      final row = await _remote.insertPost(PostModel.toInsertJson(
-        authorId: userId,
-        body: body.trim(),
-        region: region,
-        tag: resolvedTag,
-        mediaUrl: mediaUrl,
-        postType: postType,
-      ));
+      final row = await _remote.insertPost({
+        ...PostModel.toInsertJson(
+          authorId: userId,
+          body: body.trim(),
+          region: region,
+          tag: resolvedTag,
+          mediaUrl: mediaUrl,
+          postType: postType,
+        ),
+        if (attachments.isNotEmpty)
+          'attachments': [for (final a in attachments) a.toJson()],
+        if (poll != null) 'poll': poll.toJson(),
+      });
 
       final profiles = await _profiles.profilesByIds([userId]);
       return PostModel.fromJson(row, author: profiles[userId]);
@@ -301,12 +277,7 @@ class PostRepositoryImpl implements PostRepository {
     String? contentType,
   }) {
     return guard(() async {
-      final userId = _service.currentUserId;
-      if (userId == null) {
-        throw const ex.AuthException('You must be signed in to upload.');
-      }
-      final path =
-          '$userId/${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      final path = _uploadPath(fileExtension);
       return _remote.uploadMedia(
         Uint8List.fromList(bytes),
         path,
@@ -316,11 +287,81 @@ class PostRepositoryImpl implements PostRepository {
   }
 
   @override
+  Future<Result<({String path, String url})>> uploadFile({
+    required List<int> bytes,
+    required String fileExtension,
+    String? contentType,
+  }) {
+    return guard(() async {
+      final path = _uploadPath(fileExtension);
+      final url = await _remote.uploadMedia(
+        Uint8List.fromList(bytes),
+        path,
+        contentType,
+      );
+      return (path: path, url: url);
+    });
+  }
+
+  int _uploadSeq = 0;
+
+  /// `{user_id}/{ms}_{n}.{ext}`: storage only accepts uploads into the
+  /// viewer's own folder, and the counter keeps several files picked in the
+  /// same millisecond apart.
+  String _uploadPath(String fileExtension) {
+    final userId = _service.currentUserId;
+    if (userId == null) {
+      throw const ex.AuthException('You must be signed in to upload.');
+    }
+    final ms = DateTime.now().millisecondsSinceEpoch;
+    return '$userId/${ms}_${_uploadSeq++}.$fileExtension';
+  }
+
+  @override
+  Future<Result<Post>> votePoll(Post post, int optionId) {
+    return guard(() async {
+      final row = await _remote.votePoll(post.id, optionId);
+      final poll = PostExtrasModel.pollFromJson(row);
+      return poll == null ? post : post.copyWith(poll: poll);
+    });
+  }
+
+  /// Attachments and polls live in their own tables. A failed lookup leaves
+  /// the posts without them rather than failing the whole feed.
+  Future<_Extras> _extrasFor(Iterable<Map<String, dynamic>> rows) async {
+    final ids = rows.map((r) => (r['id'] as num).toInt()).toSet().toList();
+    try {
+      final (attachments, polls) =
+          await (_remote.fetchAttachments(ids), _remote.fetchPolls(ids)).wait;
+      return (
+        attachments: attachments.map(
+            (id, list) => MapEntry(id, PostExtrasModel.attachmentsFromJson(list))),
+        polls: {
+          for (final entry in polls.entries)
+            if (PostExtrasModel.pollFromJson(entry.value) case final poll?)
+              entry.key: poll,
+        },
+      );
+    } on Object {
+      return (attachments: const <int, List<PostAttachment>>{}, polls: const <int, PostPoll>{});
+    }
+  }
+
+  @override
   Stream<Post> watchNewPosts() async* {
     await for (final row in _remote.watchInserts()) {
       final authorId = row['author_id'] as String?;
       final profiles = await _profiles.profilesByIds([authorId]);
-      yield PostModel.fromJson(row, author: profiles[authorId]);
+      // The insert's transaction has committed, so its attachments and poll
+      // are already readable.
+      final id = (row['id'] as num).toInt();
+      final extras = await _extrasFor([row]);
+      yield PostModel.fromJson(
+        row,
+        author: profiles[authorId],
+        attachments: extras.attachments[id] ?? const [],
+        poll: extras.polls[id],
+      );
     }
   }
 

@@ -7,6 +7,8 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
+import 'post_attachments.dart';
+import 'post_poll_view.dart';
 
 /// One post in the feed, "clean & airy": round avatar, bold name with role
 /// icon and time on the right, plain text, rounded photo, a soft
@@ -181,13 +183,77 @@ class QuotedPostPreview extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  UserAvatar(name: post.author?.username, radius: 12),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(post.author?.username ?? 'unknown',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: post.author == null
+                        ? null
+                        : () => onAuthorTap?.call(post.author!.username),
+                    child: UserAvatar(
+                        name: post.author?.username, radius: _avatarRadius),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
+                        if (post.isUnderReview ||
+                            post.isPendingReview ||
+                            post.isRemoved) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            post.isRemoved
+                                ? 'Removed by moderators · only you can see this'
+                                : post.isPendingReview
+                                    ? 'Waiting for review · only you can see this'
+                                    : 'Under review',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: post.isRemoved ? palette.accent2 : palette.warn,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        if (item case RepostedPost(:final quote)
+                            when quote != null) ...[
+                          Text(quote, style: _bodyStyle(onSurface)),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: palette.border),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(post.body, style: _bodyStyle(onSurface)),
+                          ),
+                        ] else
+                          Text(post.body, style: _bodyStyle(onSurface)),
+                        // media_url only mirrors the first photo when a post
+                        // has attachments, so it is the fallback, not both.
+                        if (post.hasAttachments) ...[
+                          const SizedBox(height: 10),
+                          PostAttachments(attachments: post.attachments),
+                        ] else if (post.hasMedia) ...[
+                          const SizedBox(height: 10),
+                          _PostImage(url: post.mediaUrl!),
+                        ],
+                        if (post.poll case final poll?) ...[
+                          const SizedBox(height: 10),
+                          PostPollView(poll: poll, onVote: onVote),
+                        ],
+                        _MetaLine(post: post),
+                        const SizedBox(height: 2),
+                        _ActionBar(
+                          post: post,
+                          onLike: onLike,
+                          onSave: onSave,
+                          onRepost: onRepost,
+                          onShare: onShare,
+                          onReply: onTap,
+                        ),
+                      ],
+                    ),
                   ),
                   Text(' · ${post.createdAt.timeAgo}',
                       style: TextStyle(fontSize: 13, color: palette.muted)),

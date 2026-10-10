@@ -22,6 +22,8 @@ abstract interface class PostRepository {
     String? tag,
     String? mediaUrl,
     String postType = 'general',
+    List<UploadedAttachment> attachments = const [],
+    PollDraft? poll,
   });
 
   /// Returns the post in its new state so the provider can replace it without
@@ -35,6 +37,18 @@ abstract interface class PostRepository {
     required String fileExtension,
     String? contentType,
   });
+
+  /// Uploads into the viewer's own `mint-media` folder and returns where it
+  /// landed, for use as an attachment.
+  Future<Result<({String path, String url})>> uploadFile({
+    required List<int> bytes,
+    required String fileExtension,
+    String? contentType,
+  });
+
+  /// Casts the viewer's vote. Votes are final; returns the post with the
+  /// poll's new counts.
+  Future<Result<Post>> votePoll(Post post, int optionId);
 
   /// Author-only. Returns the post with its new body and edit metadata.
   Future<Result<Post>> editPost(Post post, String body);
