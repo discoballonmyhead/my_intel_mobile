@@ -36,10 +36,22 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  bool _showSaved = false;
-  bool _searching = false;
-  final _query = TextEditingController();
+/// Opens [location]; when the user comes back, reloads this profile so
+/// follows, edits, deletes and saves made on that screen show up here.
+Future<void> _pushThenRefresh(
+  BuildContext context,
+  String location, {
+  Object? extra,
+}) async {
+  final cubit = context.read<ProfileCubit>();
+  await context.push(location, extra: extra);
+  if (!cubit.isClosed) await cubit.refresh();
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.profile});
+
+  final Profile profile;
 
   @override
   void dispose() {
@@ -47,12 +59,48 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  void _closeSearch() {
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _searching = false;
-      _query.clear();
-    });
+    return Column(
+      children: [
+        UserAvatar(name: profile.username, radius: 44),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          profile.username,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: roleColor, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(profile.role.label, style: meta.copyWith(color: roleColor)),
+            if (joined != null) Text('  ·  $joined', style: meta),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _TextLink(
+              label: 'Edit profile',
+              onPressed: () => _EditUsernameDialog.show(context, profile.username),
+            ),
+            Text('|', style: TextStyle(color: palette.border)),
+            _TextLink(
+              label: 'View channel',
+              onPressed: () => _pushThenRefresh(
+                  context, AppRoutes.channelFor(profile.username)),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Future<void> _edit(String username) async {
@@ -121,30 +169,66 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _postCard(BuildContext context, ProfileCubit cubit, FeedItem item) {
-    final post = item.post;
-    return PostCard(
-      key: ValueKey(
-          '${item is RepostedPost ? 'r${item.repostId}' : 'p'}${post.id}'),
-      item: item,
-      onLike: () => cubit.toggleLike(post),
-      onSave: () => cubit.toggleSave(post),
-      onRepost: () => cubit.toggleRepost(post),
-      onShare: () => unawaited(_share(post)),
-      onAuthorTap: (username) =>
-          unawaited(context.push(AppRoutes.channelFor(username))),
+class _Stats extends StatelessWidget {
+  const _Stats({required this.profile, required this.stats});
+
+  final Profile profile;
+  final FollowStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _Stat(
+          value: stats.followers,
+          label: 'FOLLOWERS',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.followers.value),
+            extra: '@${profile.username}',
+          ),
+        ),
+        _Stat(
+          value: stats.following,
+          label: 'FOLLOWING',
+          onTap: () => _pushThenRefresh(
+            context,
+            AppRoutes.followListFor(profile.id, FollowListKind.following.value),
+            extra: '@${profile.username}',
+          ),
+        ),
+        _Stat(value: profile.auraPoints, label: 'AURA'),
+        if (profile.isAnalyst)
+          _Stat(
+            value: profile.score,
+            label: 'CRED',
+            labelColor: _bandColor(palette, profile.band),
+          ),
+      ],
     );
   }
+}
 
-  Widget _profile(
-      BuildContext context, ProfileState state, ProfileCubit cubit) {
-    final profile = state.profile!;
-    final List<FeedItem> items = _showSaved
-        ? [for (final p in state.savedPosts) OriginalPost(p)]
-        : state.activity;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 40),
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.value,
+    required this.label,
+    this.labelColor,
+    this.onTap,
+  });
+
+  final int value;
+  final String label;
+  final Color? labelColor;
+
+  /// Followers / following open the people list.
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
       children: [
         ProfileHeader(
           profile: profile,
@@ -153,25 +237,52 @@ class _ProfilePageState extends State<ProfilePage> {
           onFollowing: () => context.push(AppRoutes.following),
           onEdit: () => _edit(profile.username),
         ),
-        const SizedBox(height: 4),
-        _Tabs(
-          saved: _showSaved,
-          onChanged: (saved) => setState(() => _showSaved = saved),
-        ),
-        if (items.isEmpty)
-          _showSaved
-              ? const SoftMessage(
-                  icon: Icons.bookmark_border_rounded,
-                  title: 'Nothing saved yet',
-                  body: 'Tap the bookmark on any post to keep it here.',
-                )
-              : const SoftMessage(
-                  icon: Icons.edit_note_rounded,
-                  title: 'No posts yet',
-                  body: 'What you post shows up here.',
-                )
-        else
-          for (final item in items) _postCard(context, cubit, item),
+      ],
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        child: content,
+      ),
+    );
+  }
+}
+
+Color _bandColor(AppPalette palette, CredibilityBand band) => switch (band) {
+      CredibilityBand.high => palette.verified,
+      CredibilityBand.moderate => palette.warn,
+      CredibilityBand.low || CredibilityBand.poor => palette.accent2,
+      CredibilityBand.unrated => palette.muted,
+    };
+
+/// One quiet line under the stats: the user's next step or standing.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.profile, required this.application});
+
+  final Profile profile;
+  final OsintApplication? application;
+
+  @override
+  Widget build(BuildContext context) {
+    final access = context.watch<AccessCubit>().state;
+    final isAdmin = access.isAdmin || profile.role.isAdmin;
+    final isStaff = access.isStaff || isAdmin;
+
+    return Column(
+      children: [
+        if (profile.isAnalyst) _CredibilityBar(profile: profile),
+        if (profile.isAnalyst && isStaff) const SizedBox(height: AppSpacing.lg),
+        if (isStaff)
+          _LineRow(
+            title: isAdmin ? 'Admin console' : 'Moderation',
+            action: 'Open →',
+            onTap: () => context.push(AppRoutes.admin),
+          ),
+        if (!profile.isAnalyst && !isStaff) _applicationRow(context),
       ],
     );
   }
@@ -411,16 +522,148 @@ class _ProfileSkeleton extends StatelessWidget {
               height: 76,
               decoration: BoxDecoration(color: block, shape: BoxShape.circle)),
         ),
-        const SizedBox(height: 18),
-        Center(child: bar(160, 20)),
-        const SizedBox(height: 14),
-        Center(child: bar(200, 12)),
-        const SizedBox(height: 10),
-        Center(child: bar(140, 12)),
-        const SizedBox(height: 30),
-        row(),
-        row(),
-        row(),
+      ),
+    );
+  }
+}
+
+class _PostRow extends StatelessWidget {
+  const _PostRow({required this.post, required this.showAuthor});
+
+  final Post post;
+  final bool showAuthor;
+
+  @override
+  Widget build(BuildContext context) {
+    final author = post.author?.username;
+    final time = post.isEdited
+        ? '${post.createdAt.timeAgo} · edited'
+        : post.createdAt.timeAgo;
+    final metaStyle = AppTypography.mono(size: 10, color: context.palette.muted);
+
+    // Tap the row → the post with its comments; tap "@author" (Saved tab)
+    // → that person's channel.
+    return InkWell(
+      onTap: () => _pushThenRefresh(context, AppRoutes.postFor(post.id)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showAuthor && author != null)
+              Row(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        _pushThenRefresh(context, AppRoutes.channelFor(author)),
+                    child: Text('@$author',
+                        style: metaStyle.copyWith(
+                            color: context.palette.accent)),
+                  ),
+                  Text(' · $time', style: metaStyle),
+                ],
+              )
+            else
+              Text(time, style: metaStyle),
+            const SizedBox(height: AppSpacing.xs),
+            Text(post.body, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditUsernameDialog extends StatefulWidget {
+  const _EditUsernameDialog({required this.initial});
+
+  final String initial;
+
+  static Future<void> show(BuildContext context, String current) {
+    final cubit = context.read<ProfileCubit>();
+    return showDialog<void>(
+      context: context,
+      builder: (_) => BlocProvider.value(
+        value: cubit,
+        child: _EditUsernameDialog(initial: current),
+      ),
+    );
+  }
+
+  @override
+  State<_EditUsernameDialog> createState() => _EditUsernameDialogState();
+}
+
+class _EditUsernameDialogState extends State<_EditUsernameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _controller.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Username can’t be empty.');
+      return;
+    }
+    if (name == widget.initial) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final cubit = context.read<ProfileCubit>();
+    final ok = await cubit.updateUsername(name);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _error = cubit.state.failure?.message ?? 'Could not update username.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit profile'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        enabled: !_saving,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _save(),
+        decoration: InputDecoration(
+          labelText: 'Username',
+          helperText: 'Your channel link changes too.',
+          errorText: _error,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
       ],
     );
   }

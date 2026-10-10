@@ -80,49 +80,90 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 40),
               children: [
-                if (showAnalystCard) _AnalystCard(application: state.application),
-                if (isStaff)
-                  SettingsGroup([
-                    SettingsRow(
-                      title: isAdmin ? 'Admin console' : 'Moderation',
-                      icon: Icons.shield_outlined,
-                      onTap: () => context.push(AppRoutes.admin),
-                    ),
-                  ]),
-                SettingsGroup([
-                  SettingsRow(
-                    title: 'Appearance',
-                    icon: Icons.palette_outlined,
-                    value: themeLabel(theme.mode),
-                    onTap: () => context.push(AppRoutes.appearance),
-                  ),
-                  SettingsRow(
-                    title: 'Account',
-                    icon: Icons.person_outline_rounded,
-                    onTap: () => context.push(AppRoutes.accountSettings),
-                  ),
-                  SettingsRow(
-                    title: 'Support',
-                    icon: Icons.help_outline_rounded,
-                    onTap: () => context.push(AppRoutes.support),
-                  ),
-                ]),
-                SettingsGroup([
-                  SettingsRow(
-                    title: 'Sign out',
-                    icon: Icons.logout_rounded,
-                    chevron: false,
-                    onTap: () => _signOut(context),
-                  ),
-                  SettingsRow(
-                    title: 'Delete account',
-                    icon: Icons.delete_outline_rounded,
-                    iconColor: palette.accent,
-                    titleColor: palette.accent,
-                    chevron: false,
-                    onTap: () => context.push(AppRoutes.deleteAccount),
-                  ),
-                ]),
+                _SectionLabel(label: 'APPEARANCE'),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.system,
+                  groupValue: theme.mode,
+                  onChanged: (m) => theme.setMode(m!),
+                  title: const Text('Follow system'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.light,
+                  groupValue: theme.mode,
+                  onChanged: (m) => theme.setMode(m!),
+                  title: const Text('Ghost (light)'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.dark,
+                  groupValue: theme.mode,
+                  onChanged: (m) => theme.setMode(m!),
+                  title: const Text('Void (dark)'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'ACCOUNT'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Username'),
+                  subtitle: Text(profile?.username ?? '—'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Role'),
+                  subtitle: Text(profile?.role.label ?? '—'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_reset_rounded),
+                  title: const Text('Change password'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.changePassword),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('My reports'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.myReports),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.logout_rounded),
+                  title: const Text('Sign out'),
+                  // The router's auth redirect takes over once signed out.
+                  onTap: () => context.read<AuthCubit>().signOut(),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'SUPPORT'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.feedback_outlined),
+                  title: const Text('Send feedback'),
+                  subtitle: const Text('Report a bug or suggest an idea'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.feedback),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'DANGER ZONE'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.delete_forever_outlined,
+                      color: palette.accent2),
+                  title: Text('Delete account',
+                      style: TextStyle(color: palette.accent2)),
+                  subtitle: const Text('Permanently erase your account'),
+                  onTap: () => context.push(AppRoutes.deleteAccount),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionLabel(label: 'DIAGNOSTICS'),
+                Text(
+                  'Layout: ${responsive.deviceType.name} · '
+                  '${responsive.width.toStringAsFixed(0)}×'
+                  '${responsive.height.toStringAsFixed(0)}',
+                  style: AppTypography.mono(size: 10, color: palette.muted),
+                ),
               ],
             ),
           ),

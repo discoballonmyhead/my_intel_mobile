@@ -26,13 +26,9 @@ class AppRoutes {
   static const String search = '/search';
   static const String settings = '/settings';
   static const String deleteAccount = '/settings/delete-account';
-  static const String appearance = '/settings/appearance';
-  static const String accountSettings = '/settings/account';
-  static const String changePassword = '/settings/account/password';
-  static const String changeEmail = '/settings/account/email';
-  static const String support = '/settings/support';
-  static const String followers = '/profile/followers';
-  static const String following = '/profile/following';
+  static const String changePassword = '/settings/change-password';
+  static const String post = '/post/:postId';
+  static const String followList = '/profiles/:userId/:kind';
   static const String feedback = '/feedback';
   static const String applyOsint = '/apply';
   static const String channel = '/channel/:username';
@@ -51,6 +47,11 @@ class AppRoutes {
   static const String adminAudit = '/admin/audit';
 
   static String channelFor(String username) => '/channel/$username';
+  static String postFor(int postId) => '/post/$postId';
+
+  /// [kind] is 'followers' or 'following'.
+  static String followListFor(String userId, String kind) =>
+      '/profiles/$userId/$kind';
   static String storyFor(int storyId) => '/story/$storyId';
   static String chatFor(String conversationId) => '/messages/$conversationId';
   static String addMembersFor(String conversationId) =>
@@ -99,13 +100,9 @@ class RouteNames {
   static const String search = 'search';
   static const String settings = 'settings';
   static const String deleteAccount = 'deleteAccount';
-  static const String appearance = 'appearance';
-  static const String accountSettings = 'accountSettings';
   static const String changePassword = 'changePassword';
-  static const String changeEmail = 'changeEmail';
-  static const String support = 'support';
-  static const String followers = 'followers';
-  static const String following = 'following';
+  static const String post = 'post';
+  static const String followList = 'followList';
   static const String feedback = 'feedback';
   static const String applyOsint = 'applyOsint';
   static const String channel = 'channel';

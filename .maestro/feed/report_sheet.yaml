@@ -1,0 +1,23 @@
+# test_plan: feed.post_actions.menu_other, feed.post_actions.report
+# Opens the report sheet and picks a reason, but never submits.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [feed]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "All"
+- tapOn:
+    text: "More"
+    index: 0
+- runFlow:
+    when:
+      visible: "Report post"
+    commands:
+      - tapOn: "Report post"
+      - assertVisible: "Why are you reporting this?"
+      - tapOn: "Misinformation"
+      - scrollUntilVisible:
+          element: "SUBMIT REPORT"
+      - assertVisible: "SUBMIT REPORT"
+      - swipe:
+          direction: DOWN

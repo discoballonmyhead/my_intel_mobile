@@ -57,6 +57,16 @@ class AuthRepositoryImpl implements AuthRepository {
       _guard(() => _remote.updatePassword(newPassword));
 
   @override
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) =>
+      _guard(() => _remote.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+          ));
+
+  @override
   Future<Result<void>> resendVerification(String email) =>
       _guard(() => _remote.resendVerification(email));
 
@@ -94,6 +104,13 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (lower.contains('already registered')) {
       return 'An account with that email already exists.';
+    }
+    if (lower.contains('different from the old password')) {
+      return 'Your new password must be different from the current one.';
+    }
+    if (lower.contains('password should be') || lower.contains('weak password')) {
+      return 'That password is too weak. Use at least 8 characters with a mix '
+          'of letters and numbers.';
     }
     if (lower.contains('rate limit') || lower.contains('too many')) {
       return 'Too many attempts. Wait a moment and try again.';

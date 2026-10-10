@@ -37,6 +37,7 @@ class DbTables {
   static const String communityNotes = 'community_notes';
   static const String feedback = 'feedback';
   static const String reports = 'reports';
+  static const String comments = 'comments';
 
   // messaging
   static const String conversations = 'conversations';
@@ -71,6 +72,12 @@ class PostRpc {
   static const String edit = 'post_edit';
   static const String delete = 'post_delete';
   static const String editHistory = 'post_get_edit_history';
+
+  /// Post + attachments + poll in one transaction (migration 20261009).
+  static const String create = 'social_create_post';
+  static const String attachmentsForPosts = 'attachment_get_for_posts';
+  static const String pollsForPosts = 'poll_get_for_posts';
+  static const String pollVote = 'poll_vote';
 }
 
 /// RPCs for direct messages and groups (migration 04 + 10).
@@ -108,6 +115,8 @@ class ReportRpc {
   static const String setPostVisibility = 'mod_set_post_visibility';
   static const String removeMessage = 'mod_remove_message';
   static const String warnUser = 'mod_warn_user';
+  static const String removeComment = 'mod_remove_comment';
+  static const String restoreComment = 'mod_restore_comment';
 }
 
 /// RPCs for the admin console (migration 06 + 07).
@@ -137,4 +146,24 @@ class AccountRpc {
 
   /// Exact phrase `account_delete_self` requires.
   static const String deleteConfirmation = 'DELETE MY ACCOUNT';
+}
+
+/// Follow graph RPCs (migration 11).
+class FollowRpc {
+  const FollowRpc._();
+  static const String stats = 'follow_get_stats';
+  static const String set = 'follow_set';
+  static const String toggle = 'follow_toggle';
+  static const String list = 'follow_get_list';
+}
+
+/// Comments & replies RPCs (migration 11).
+class CommentRpc {
+  const CommentRpc._();
+  static const String create = 'comment_create';
+  static const String edit = 'comment_edit';
+  static const String delete = 'comment_delete';
+  static const String toggleLike = 'comment_toggle_like';
+  static const String forPost = 'comment_get_for_post';
+  static const String replies = 'comment_get_replies';
 }

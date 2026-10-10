@@ -1,0 +1,13 @@
+# test_plan: profile.search
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [profile]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Profile.*"
+- tapOn: "Search your posts"
+- assertVisible: "(?s)Search your posts.*Find anything.*"
+- inputText: "zqxvkl"
+- assertVisible: "(?s)No posts match.*"
+- tapOn: "Cancel"
+- assertVisible: "Edit profile"

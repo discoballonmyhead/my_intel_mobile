@@ -1,0 +1,648 @@
+# MINT mobile · test plan
+#
+# One entry per feature. Every case says how it is tested:
+#   automation: path to a Maestro flow in .maestro/ (runs on the simulator)
+#   automation: manual (needs a person: photo library, visual checks, real data)
+#   automation: unit (covered by `flutter test`, file named in `test`)
+#
+# When a feature is added or changed, add or update its entry here in the same
+# PR, and add a Maestro flow when the case can be automated.
+#
+# Status values:
+#   ready         built and testable now
+#   coming_soon   the UI is in the app, but it waits on backend work
+#   planned       designed in Figma, not built yet
+#
+# How to run:
+#   flutter analyze && flutter test              # also runs in GitHub Actions
+#   maestro test .maestro                         # all UI flows, simulator running
+#   maestro test .maestro --include-tags=composer # one area
+# Flows that need a signed-in user read MINT_EMAIL and MINT_PASSWORD:
+#   maestro test -e MINT_EMAIL=you@example.com -e MINT_PASSWORD=... .maestro
+# Never commit real credentials.
+
+version: 1
+updated: 2026-10-08
+app_id: app.statelesslabs.mintelspace
+account_under_test: Member (role `public`)
+figma: https://www.figma.com/design/WP6nNlcCOArlyy6eCljBWi
+
+features:
+
+  # ── Before sign in (Figma 3.1 dark, 3.2 light) ────────────────────────────
+  - id: auth.sign_in
+    area: Before sign in
+    name: Sign in
+    status: ready
+    cases:
+      - id: auth.sign_in.screen
+        title: Sign in screen shows its fields and actions
+        steps: [Open the app signed out]
+        expected:
+          - Email and Password fields, "Forgot password?" and the SIGN IN button are visible
+          - The switch shows "Sign in" selected and "Create account"
+          - Switch labels use Inter, not SF Pro
+        automation: .maestro/auth/sign_in_screen.yaml
+      - id: auth.sign_in.wrong_password
+        title: Wrong password shows the error banner
+        steps: [Enter a valid email and a wrong password, Tap SIGN IN]
+        expected: ['Banner reads "That email and password do not match an account."']
+        automation: .maestro/auth/wrong_password.yaml
+      - id: auth.sign_in.error_cleared
+        title: The sign-in error does not follow you to other screens
+        steps:
+          - 'Trigger the wrong-password error'
+          - 'Tap "Forgot password?"'
+        expected: [The error banner is not shown on Forgot password]
+        automation: .maestro/auth/forgot_password.yaml
+        note: Needs the router fix in lib/core/router/app_router.dart, which is not committed yet.
+      - id: auth.sign_in.success
+        title: Valid credentials open the Feed
+        steps: [Enter valid credentials, Tap SIGN IN]
+        expected: [The Feed tab opens]
+        automation: .maestro/subflows/login.yaml
+
+  - id: auth.create_account
+    area: Before sign in
+    name: Create account
+    status: ready
+    cases:
+      - id: auth.create_account.member
+        title: Member is the default role
+        steps:
+          - 'Tap "Create account"'
+        expected:
+          - Member card is selected
+          - Button reads "JOIN AS MEMBER"
+          - Username, Email and Password (8+ characters) fields are shown
+        automation: .maestro/auth/create_account_roles.yaml
+      - id: auth.create_account.reporter
+        title: Picking Reporter changes the button
+        steps: [Tap the Reporter card]
+        expected:
+          - 'Button reads "JOIN AS REPORTER"'
+        automation: .maestro/auth/create_account_roles.yaml
+      - id: auth.create_account.verify_email
+        title: Sign-up leads to Verify email
+        steps: [Fill all fields with a new email, Tap JOIN AS MEMBER]
+        expected: [Verify email screen shows the address and BACK TO SIGN IN]
+        automation: manual
+        note: Creates a real account, so it stays manual.
+
+  - id: auth.recovery
+    area: Before sign in
+    name: Password recovery
+    status: ready
+    cases:
+      - id: auth.recovery.forgot
+        title: Forgot password screen
+        steps:
+          - 'Tap "Forgot password?"'
+        expected: ['"Forgot your password?", the Email field and SEND RESET LINK are shown', '"Back to sign in" returns to Sign in']
+        automation: .maestro/auth/forgot_password.yaml
+      - id: auth.recovery.link_sent
+        title: Link sent, with resend timer
+        steps: [Enter an email, Tap SEND RESET LINK]
+        expected: ['"Check your inbox" is shown', '"Resend in 0:30" counts down, then "Resend link"']
+        automation: manual
+        note: Sends a real email.
+      - id: auth.recovery.reset
+        title: Set a new password
+        steps: [Open the reset link from the email]
+        expected: [UPDATE PASSWORD stays disabled until both fields match and have 8+ characters]
+        automation: manual
+
+  # ── App-wide ───────────────────────────────────────────────────────────────
+  - id: app.theme
+    area: App-wide
+    name: Light and dark themes
+    status: ready
+    cases:
+      - id: app.theme.dark_accent
+        title: Dark mode uses the logo red
+        steps: [Profile → Settings → switch to dark]
+        expected:
+          - Logo, buttons, links and the selected tab are red (#C0404A), not cyan
+          - Text on red buttons is white
+        automation: manual
+      - id: app.theme.dark_tabs
+        title: Unselected tabs are white in dark mode
+        steps: [Switch to dark, look at the bottom tab bar]
+        expected: [Unselected tab icons and labels are white; in light mode they stay grey]
+        automation: manual
+
+  # ── Feed tab (Figma 3.3 dark, 3.4 light) ──────────────────────────────────
+  - id: feed.list
+    area: Feed
+    name: Feed list and filters
+    status: ready
+    cases:
+      - id: feed.list.filters
+        title: All / Following / News filters
+        steps: [Tap Following, Tap News, Tap All]
+        expected:
+          - Each filter shows its posts or its empty message
+          - Following with no follows reads "Follow people to see their posts here"
+        automation: .maestro/feed/filters.yaml
+      - id: feed.list.loading_error
+        title: Loading skeleton and offline error
+        steps: [Open the Feed on a slow connection, then with no connection]
+        expected:
+          - 'Skeleton rows while loading'
+          - '"No internet connection." with RETRY when offline'
+        automation: manual
+      - id: feed.list.new_posts_pill
+        title: New posts pill
+        steps: [Another account posts while the Feed is open]
+        expected:
+          - 'A red "N new posts" pill appears; tapping it shows them, briefly highlighted'
+        automation: manual
+
+  - id: feed.post_actions
+    area: Feed
+    name: Post actions
+    status: ready
+    cases:
+      - id: feed.post_actions.share
+        title: Share copies the post link
+        steps: [Tap the share icon on a post]
+        expected:
+          - 'Snackbar reads "Link copied."'
+          - 'The clipboard holds <web app>/feed?highlight=<post id>'
+        automation: .maestro/feed/share_link.yaml
+      - id: feed.post_actions.like_repost_save
+        title: Like, repost and save toggle instantly
+        steps: [Tap like, repost and save on a post]
+        expected: [Icons fill and counts change at once; they roll back if the request fails]
+        automation: manual
+        note: Writes to the account, so it stays manual.
+      - id: feed.post_actions.menu_own
+        title: Menu on your own post
+        steps: [Tap ⋯ on your post]
+        expected: [Edit post and Delete post; Edit history too if the post was edited]
+        automation: manual
+      - id: feed.post_actions.menu_other
+        title: Menu on someone else's post
+        steps: [Tap ⋯ on another user's post]
+        expected: [View @user and Report post]
+        automation: .maestro/feed/report_sheet.yaml
+      - id: feed.post_actions.report
+        title: Report a post
+        steps: [Report post → pick a reason → SUBMIT REPORT]
+        expected: ['"Other" requires details', '"Thanks for letting us know" after submitting']
+        automation: .maestro/feed/report_sheet.yaml
+        note: The flow opens the sheet and picks a reason but does not submit.
+
+  - id: feed.search
+    area: Feed
+    name: Search
+    status: ready
+    cases:
+      - id: feed.search.results
+        title: Results grouped by People, Stories, Posts
+        steps:
+          - 'Tap search'
+          - 'Type "elsa"'
+        expected: [PEOPLE and STORIES sections with counts]
+        automation: manual
+      - id: feed.search.no_results
+        title: No matches
+        steps:
+          - 'Type "zqxvkl"'
+        expected: ['"No matches" empty state']
+        automation: .maestro/feed/search.yaml
+
+  # ── New post composer (Option A+) ──────────────────────────────────────────
+  - id: composer.basics
+    area: New post
+    name: Composer layout and posting
+    status: ready
+    cases:
+      - id: composer.basics.open_close
+        title: Open and close
+        steps: [Tap the New post button, Tap ×]
+        expected:
+          - Sheet shows "New post", a disabled Post pill, Attach and Emoji buttons, "Add region" and "News" chips
+          - × closes the sheet without posting
+        automation: .maestro/composer/open_close.yaml
+      - id: composer.basics.post_enabled
+        title: Post enables when there is text
+        steps: [Type text]
+        expected: [Post turns red]
+        automation: .maestro/composer/open_close.yaml
+      - id: composer.basics.char_ring
+        title: Character ring near and over the limit
+        steps: [Type 1850 characters, then 2040]
+        expected: ['At 150 left the ring is orange with "150"', 'Over the limit it shows "-40" in purple and Post is disabled']
+        automation: manual
+      - id: composer.basics.post
+        title: Posting a text post
+        steps: [Type text, Tap Post]
+        expected: ['Sheet closes, "Posted." snackbar, the post appears at the top of the Feed']
+        automation: manual
+        note: Creates a real post, so it stays manual.
+
+  - id: composer.region
+    area: New post
+    name: Region chip
+    status: ready
+    cases:
+      - id: composer.region.add
+        title: Add and remove a region
+        steps:
+          - 'Tap "Add region"'
+          - 'Type "Mumbai, India"'
+          - 'Tap Save'
+        expected:
+          - 'Chip shows "Mumbai, India"; Remove in the dialog clears it'
+        automation: .maestro/composer/region.yaml
+
+  - id: composer.news
+    area: New post
+    name: Post as News
+    status: ready
+    cases:
+      - id: composer.news.toggle
+        title: News chip
+        steps: [Tap the News chip]
+        expected:
+          - 'Chip turns light red; "Marked as a news report. False news can lead to a ban." appears'
+        automation: .maestro/composer/news_confirm.yaml
+      - id: composer.news.confirm
+        title: Confirmation before posting News
+        steps: [With News on, tap Post]
+        expected:
+          - '"POST AS NEWS?" dialog with a red "Post as news" button and Cancel'
+          - 'Cancel returns to the composer'
+        automation: .maestro/composer/news_confirm.yaml
+
+  - id: composer.emoji
+    area: New post
+    name: Emoji panel
+    status: ready
+    cases:
+      - id: composer.emoji.insert
+        title: Insert an emoji
+        steps: [Tap Emoji, tap 😀]
+        expected: [Keyboard is replaced by the emoji panel; 😀 is inserted at the cursor]
+        automation: .maestro/composer/emoji.yaml
+
+  - id: composer.attach
+    area: New post
+    name: Attachment menu
+    status: ready
+    cases:
+      - id: composer.attach.menu
+        title: Menu items
+        steps: [Tap Attach]
+        expected: [Photos, Videos, Files, Audio and Poll are listed]
+        automation: .maestro/composer/attach_menu.yaml
+      - id: composer.attach.photo
+        title: Attach and post a photo
+        steps: [Attach → Photos → pick a photo, Tap Post]
+        expected:
+          - A thumbnail with × appears under the text
+          - The post shows the photo in the Feed
+        automation: manual
+        note: Needs a photo in the simulator's library and creates a real post.
+      - id: composer.attach.coming_soon
+        title: Items waiting on the backend
+        steps: [Attach → Videos, Files, Audio or Poll]
+        expected: ['"… coming soon." shows briefly above the bottom row']
+        automation: .maestro/composer/attach_menu.yaml
+
+  - id: composer.media_attachments
+    area: New post
+    name: Videos, files, audio and several attachments per post
+    status: coming_soon
+    blocked_by: Supabase post_attachments table and storage rules (backend spec shared with the owner)
+    cases:
+      - id: composer.media_attachments.add
+        title: Attach video, file and audio
+        expected: [Video thumbnail with length, file row with name and size, voice note row with length, each removable]
+        automation: manual
+
+  - id: polls
+    area: New post and Feed
+    name: Polls
+    status: coming_soon
+    blocked_by: Supabase poll tables and poll_vote / poll_results RPCs
+    cases:
+      - id: polls.create
+        title: Create a poll, alone or with a photo
+        expected:
+          - '2–4 options'
+          - '"+ Add option"'
+          - '"Poll length · 1 day"'
+          - '"Remove poll"'
+        automation: manual
+      - id: polls.vote
+        title: Vote in the feed
+        expected:
+          - 'Options turn into result bars with percentages; your pick is ticked; "You voted"'
+        automation: manual
+      - id: polls.ended
+        title: Ended poll
+        expected: ['"Final results"; no voting']
+        automation: manual
+
+  # ── Intel (Figma 3.5 dark, 3.6 light) ────────────────────────────────────
+  - id: intel.list
+    area: Intel
+    name: Intel list, search and Following
+    status: ready
+    cases:
+      - id: intel.list.cards
+        title: Stories show as soft cards with a confidence ring
+        steps: [Open the Intel tab]
+        expected:
+          - MINT logo, search bar, filter button, All / Following tabs
+          - Stories newest first under Today / Yesterday / This week / Earlier
+          - 'Each card: details line, headline, summary, ring with the % inside'
+          - 'Ring colour: green 70%+, amber 55–69%, grey below 55%'
+          - Breaking stories show a red "● Breaking" details line
+        automation: manual
+      - id: intel.list.search
+        title: Search bar opens Search
+        steps: [Tap the search bar]
+        expected: ['The Search page opens with "Search stories, posts, people, #tags"']
+        automation: .maestro/intel/search.yaml
+      - id: intel.list.following
+        title: Following tab
+        steps: [Tap Following, then All]
+        expected:
+          - 'Following reads "Nothing from people you follow yet" (backend query not built yet)'
+          - All shows the stories again
+        automation: .maestro/intel/following.yaml
+      - id: intel.list.loading_error
+        title: Loading skeleton and error
+        steps: [Open Intel on a slow connection, then with no connection]
+        expected:
+          - Soft skeleton cards while loading
+          - '"Can’t load stories" with Try again when offline'
+        automation: manual
+
+  - id: intel.filters
+    area: Intel
+    name: Intel filters
+    status: ready
+    cases:
+      - id: intel.filters.sheet
+        title: Filter sheet
+        steps: [Tap the filter button, Pick Geopolitics and High only, Tap "Show N stories"]
+        expected:
+          - 'Sheet has Topics (several at once), Time, Confidence, Breaking only, Reset'
+          - The button counts matching stories as you change filters
+          - '"Geopolitics" also finds stories tagged "Geopolitical"'
+        automation: .maestro/intel/filters.yaml
+      - id: intel.filters.chips
+        title: Active filters
+        steps: [Apply filters, Tap × on one chip, Tap Clear]
+        expected:
+          - A red dot on the filter button while filters are on
+          - One removable chip per filter; Clear removes all
+        automation: .maestro/intel/filters.yaml
+      - id: intel.filters.no_matches
+        title: No matches
+        steps: [Pick Nuclear and Breaking only]
+        expected: ['"No stories match your filters" with Clear filters']
+        automation: manual
+
+  - id: intel.story
+    area: Intel
+    name: Story page
+    status: ready
+    cases:
+      - id: intel.story.open
+        title: Open a story
+        steps: [Tap a story card, Tap Back]
+        expected:
+          - Details line, headline, "Updated …" (a date when older than a week)
+          - 'Confidence card: large ring with "High/Medium/Low confidence" and the source count'
+          - Summary, then Sources as soft cards, or "No sources yet"
+          - Back returns to Intel
+        automation: .maestro/intel/open_story.yaml
+      - id: intel.story.loading_error
+        title: Story loading and error
+        expected: [Skeleton while loading, '"Can’t load this story" with Try again']
+        automation: manual
+
+  - id: intel.following_backend
+    area: Intel
+    name: Following shows stories reported by people you follow
+    status: coming_soon
+    blocked_by: Supabase query for stories with sources from followed users
+    cases:
+      - id: intel.following_backend.list
+        title: Following lists stories your follows reported on
+        automation: manual
+
+  # ── Profile and Settings (Figma 3.7 dark, 3.8 light) ─────────────────────
+  - id: profile.page
+    area: Profile
+    name: Profile tab
+    status: ready
+    cases:
+      - id: profile.page.header
+        title: Calm header
+        steps: [Open the Profile tab]
+        expected:
+          - Initial on a soft red halo, username, "N followers · N following · N aura", Edit profile
+          - No "Member since", no channel link, no analyst link on the profile
+        automation: .maestro/profile/tabs.yaml
+      - id: profile.page.tabs
+        title: Posts and Saved look like the Feed
+        steps: [Tap Saved, then Posts]
+        expected:
+          - Posts use the Feed post card, with photos, videos and polls
+          - Like, save, repost and share work, and update straight away
+          - '"No posts yet" / "Nothing saved yet" when empty'
+        automation: .maestro/profile/tabs.yaml
+      - id: profile.page.loading_error
+        title: Loading and error
+        expected: [Soft skeleton while loading, '"Can’t load your profile" with Try again']
+        automation: manual
+
+  - id: profile.search
+    area: Profile
+    name: Search your posts
+    status: ready
+    cases:
+      - id: profile.search.find
+        title: Search your own posts
+        steps: [Tap the search icon, Type a word, Tap Cancel]
+        expected:
+          - '"Search your posts" before typing'
+          - Matching posts with a count, or "No posts match …"
+          - Cancel returns to the profile
+        automation: .maestro/profile/search.yaml
+
+  - id: profile.edit
+    area: Profile
+    name: Edit profile
+    status: ready
+    cases:
+      - id: profile.edit.username
+        title: Change username in the bottom sheet
+        steps: [Tap Edit profile, change the username, Save]
+        expected: ['"Profile updated" message; a taken name shows its error on the field']
+        automation: manual
+        note: Changes the real username.
+
+  - id: profile.about_me
+    area: Profile
+    name: About me (bio)
+    status: coming_soon
+    blocked_by: bio column on identity.profiles (≤160 chars), returned by profile RPCs
+    cases:
+      - id: profile.about_me.edit
+        title: Add, edit and show a short bio
+        automation: manual
+
+  - id: profile.followers
+    area: Profile
+    name: Followers and following
+    status: ready
+    cases:
+      - id: profile.followers.lists
+        title: Open the lists from the profile
+        steps: [Tap "followers", switch to Following, Back]
+        expected:
+          - Two tabs with counts; each person shows name and role
+          - Follow back / Following buttons; empty states with Find people
+        automation: .maestro/profile/followers.yaml
+
+  - id: settings.main
+    area: Settings
+    name: Settings and its pages
+    status: ready
+    cases:
+      - id: settings.list
+        title: Settings list
+        expected:
+          - '"Become an OSINT analyst" card with Apply → on top (or the application state)'
+          - Appearance, Account, Support, Sign out, Delete account
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.appearance
+        title: Appearance
+        expected: [Match system / Light / Dark with a tick on the current one; no arrows]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.account
+        title: Account
+        expected: [Username, Email, Change password; Role, Member since; My reports]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.support
+        title: Support
+        expected: [Send feedback]
+        automation: .maestro/profile/settings_pages.yaml
+      - id: settings.sign_out
+        title: Sign out asks first
+        expected: ['"Sign out of MINT?" sheet with Sign out and Cancel']
+        automation: .maestro/profile/settings_pages.yaml
+
+  - id: settings.change_password
+    area: Settings
+    name: Change password
+    status: ready
+    cases:
+      - id: settings.change_password.wrong_current
+        title: Wrong current password
+        expected: ['"That password is not right." on the current-password field; nothing changes']
+        automation: .maestro/profile/change_password_wrong.yaml
+      - id: settings.change_password.success
+        title: Change the password
+        expected: ['Back to Account with "Password updated"']
+        automation: manual
+        note: Changes the real password.
+
+  - id: settings.change_email
+    area: Settings
+    name: Change email
+    status: ready
+    blocked_by: Supabase redirect URL io.mint.app://email-changed and the "Secure email change" setting, for the link to open the app
+    cases:
+      - id: settings.change_email.send
+        title: Send the confirmation link
+        expected:
+          - '"Check your inbox" screen; Account shows "Confirm … from your inbox"'
+          - A wrong password shows on the password field
+        automation: manual
+
+  # ── Repost (Figma 3.3 / 3.4, "Repost" row) ──────────────────────────────
+  - id: repost
+    area: Feed and Profile
+    name: Repost, with or without a comment
+    status: ready
+    note: Maestro cannot reach the buttons inside repost cards (nesting depth), so these are manual for now.
+    cases:
+      - id: repost.menu
+        title: 🔁 opens a small menu
+        steps: [Tap 🔁 on someone else's post]
+        expected: ['Menu under the button: "Repost" and "Repost with a comment"']
+        automation: manual
+      - id: repost.plain
+        title: Repost without a comment
+        steps: [Tap 🔁, Choose Repost]
+        expected:
+          - '"You reposted · now" at the top of the Feed, original in a soft card; 🔁 green'
+          - It also shows under Posts on your Profile
+        automation: manual
+      - id: repost.comment
+        title: Repost with a comment
+        steps: [Tap 🔁, Choose "Repost with a comment", Write, Post]
+        expected: [Your comment with the original in a soft card below]
+        automation: manual
+      - id: repost.undo
+        title: Undo repost
+        steps: [Tap the green 🔁, Choose Undo repost]
+        expected: [The repost disappears from the Feed and the Profile]
+        automation: manual
+      - id: repost.others
+        title: How followers see it
+        expected: ['"<your name> reposted · 2h" above the original; their 🔁 stays grey']
+        automation: manual
+
+  # ── Unit tests ─────────────────────────────────────────────────────────────
+  - id: unit.create_post
+    area: Domain
+    name: CreatePost use case
+    status: ready
+    cases:
+      - id: unit.create_post.validation
+        title: Rejects empty and over-long posts
+        automation: unit
+        test: test/features/feed/domain/usecases/create_post_test.dart
+      - id: unit.create_post.photo
+        title: Uploads the photo first and posts its URL; stops if the upload fails
+        automation: unit
+        test: test/features/feed/domain/usecases/create_post_test.dart
+
+  - id: unit.intel_filters
+    area: Intel
+    name: Intel filter matching
+    status: ready
+    cases:
+      - id: unit.intel_filters.matching
+        title: Topics match loosely; confidence, breaking and equality
+        automation: unit
+        test: test/features/stories/presentation/providers/intel_filters_test.dart
+
+  - id: unit.account_security
+    area: Settings
+    name: Change password and email rules
+    status: ready
+    cases:
+      - id: unit.account_security.rules
+        title: Length, match, wrong current password, valid and different email
+        automation: unit
+        test: test/features/auth/account_security_test.dart
+
+  - id: unit.profile_search
+    area: Profile
+    name: Search your posts
+    status: ready
+    cases:
+      - id: unit.profile_search.words
+        title: Every word must match, ignoring case
+        automation: unit
+        test: test/features/profile/profile_search_test.dart

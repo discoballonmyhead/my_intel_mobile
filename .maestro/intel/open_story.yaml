@@ -1,0 +1,20 @@
+# test_plan: intel.story.open
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [intel]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Intel.*"
+- extendedWaitUntil:
+    visible: "(?s).*confidence, \\d+ percent.*"
+    timeout: 15000
+- tapOn:
+    text: "(?s).*confidence, \\d+ percent.*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Sources"
+    timeout: 15000
+- assertVisible: "(?s).*(High|Medium|Low) confidence.*"
+- takeScreenshot: intel_story
+- tapOn: "Back"
+- assertVisible: "Search"

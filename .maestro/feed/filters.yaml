@@ -1,0 +1,12 @@
+# test_plan: feed.list.filters
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [feed]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "Following"
+- takeScreenshot: feed_following
+- tapOn: "News"
+- takeScreenshot: feed_news
+- tapOn: "All"
+- assertVisible: "All"

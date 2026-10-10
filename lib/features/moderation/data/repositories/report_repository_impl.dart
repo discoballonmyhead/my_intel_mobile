@@ -106,6 +106,10 @@ class ReportRepositoryImpl implements ReportRepository {
       guard(() => _remote.removeMessage(messageId, reason));
 
   @override
+  Future<Result<void>> removeComment(int commentId, String reason) =>
+      guard(() => _remote.removeComment(commentId, reason));
+
+  @override
   Future<Result<int>> warnUser(String userId, String reason, {int? reportId}) =>
       guard(() => _remote.warnUser(userId, reason, reportId));
 
