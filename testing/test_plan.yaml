@@ -568,6 +568,40 @@ features:
           - A wrong password shows on the password field
         automation: manual
 
+  # ── Repost (Figma 3.3 / 3.4, "Repost" row) ──────────────────────────────
+  - id: repost
+    area: Feed and Profile
+    name: Repost, with or without a comment
+    status: ready
+    note: Maestro cannot reach the buttons inside repost cards (nesting depth), so these are manual for now.
+    cases:
+      - id: repost.menu
+        title: 🔁 opens a small menu
+        steps: [Tap 🔁 on someone else's post]
+        expected: ['Menu under the button: "Repost" and "Repost with a comment"']
+        automation: manual
+      - id: repost.plain
+        title: Repost without a comment
+        steps: [Tap 🔁, Choose Repost]
+        expected:
+          - '"You reposted · now" at the top of the Feed, original in a soft card; 🔁 green'
+          - It also shows under Posts on your Profile
+        automation: manual
+      - id: repost.comment
+        title: Repost with a comment
+        steps: [Tap 🔁, Choose "Repost with a comment", Write, Post]
+        expected: [Your comment with the original in a soft card below]
+        automation: manual
+      - id: repost.undo
+        title: Undo repost
+        steps: [Tap the green 🔁, Choose Undo repost]
+        expected: [The repost disappears from the Feed and the Profile]
+        automation: manual
+      - id: repost.others
+        title: How followers see it
+        expected: ['"<your name> reposted · 2h" above the original; their 🔁 stays grey']
+        automation: manual
+
   # ── Unit tests ─────────────────────────────────────────────────────────────
   - id: unit.create_post
     area: Domain
