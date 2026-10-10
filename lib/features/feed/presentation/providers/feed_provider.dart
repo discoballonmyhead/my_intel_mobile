@@ -10,6 +10,7 @@ import '../../domain/usecases/create_post.dart';
 import '../../domain/usecases/get_feed.dart';
 import '../../domain/usecases/manage_post.dart';
 import '../../domain/usecases/toggle_interaction.dart';
+import '../../../profile/domain/entities/profile.dart';
 import '../../../profile/domain/usecases/toggle_follow.dart';
 
 enum FeedStatus { initial, loading, ready, error }
@@ -195,16 +196,42 @@ class FeedProvider extends ChangeNotifier {
         action: () => _toggleSave(post),
       );
 
-  Future<void> toggleRepost(Post post, {String? quote}) => _optimistic(
-        post,
-        preview: post.copyWith(
-          reposted: !post.reposted,
-          repostCount: post.reposted
-              ? (post.repostCount - 1).clamp(0, 1 << 30)
-              : post.repostCount + 1,
-        ),
-        action: () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
-      );
+  /// Reposts (optionally with a comment) or undoes a repost. With [me], your
+  /// repost shows at the top of the Feed straight away, and undo removes it.
+  Future<void> toggleRepost(Post post, {String? quote, Profile? me}) async {
+    await _optimistic(
+      post,
+      preview: post.copyWith(
+        reposted: !post.reposted,
+        repostCount: post.reposted
+            ? (post.repostCount - 1).clamp(0, 1 << 30)
+            : post.repostCount + 1,
+      ),
+      action: () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
+    );
+    if (me == null) return;
+    final now = _items.where((i) => i.post.id == post.id).firstOrNull?.post;
+    if (now == null || now.reposted == post.reposted) return; // failed
+    if (now.reposted) {
+      // The Feed hides reposts of your own posts; the original already shows.
+      if (post.author?.id == me.id) return;
+      _items = [
+        RepostedPost(now,
+            repostId: -now.id,
+            repostedAt: DateTime.now().toUtc(),
+            reposter: me,
+            quote: quote),
+        ..._items,
+      ];
+    } else {
+      _items = _items
+          .where((i) => !(i is RepostedPost &&
+              i.post.id == post.id &&
+              i.reposter?.id == me.id))
+          .toList();
+    }
+    notifyListeners();
+  }
 
   /// Votes are final, so this waits for the server instead of guessing:
   /// the poll's new counts replace it on every card showing the post.

@@ -19,6 +19,7 @@ import '../../../../core/widgets/app_dialogs.dart';
 import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
 import '../../../moderation/domain/entities/report.dart';
+import '../../../profile/presentation/providers/profile_cubit.dart';
 import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../../comments/presentation/pages/post_detail_page.dart';
@@ -30,6 +31,7 @@ import '../widgets/edit_post_sheet.dart';
 import '../widgets/post_actions_sheet.dart';
 import '../widgets/post_card.dart';
 import '../widgets/post_edit_history_sheet.dart';
+import '../widgets/quote_composer.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
@@ -147,6 +149,14 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
+  /// "Repost with a comment": write the comment, then repost with it.
+  Future<void> _quote(Post post) async {
+    final me = context.read<ProfileCubit>().state.profile;
+    final comment = await QuoteComposer.show(context, post, username: me?.username);
+    if (comment == null || !mounted) return;
+    await context.read<FeedProvider>().toggleRepost(post, quote: comment, me: me);
+  }
+
   Future<void> _openActions(Post post) async {
     final action = await PostActionsSheet.show(
       context,
@@ -248,7 +258,10 @@ class _FeedPageState extends State<FeedPage> {
                 highlight: provider.freshIds.contains(item.post.id),
                 onLike: () => provider.toggleLike(item.post),
                 onSave: () => provider.toggleSave(item.post),
-                onRepost: () => provider.toggleRepost(item.post),
+                onRepost: () => provider.toggleRepost(item.post,
+                    me: context.read<ProfileCubit>().state.profile),
+                onQuote: () => unawaited(_quote(item.post)),
+                myUserId: context.read<AuthCubit>().state.user?.id,
                 onShare: () => unawaited(_sharePost(item.post)),
                 onAuthorTap: (username) =>
                     unawaited(context.push(AppRoutes.channelFor(username))),

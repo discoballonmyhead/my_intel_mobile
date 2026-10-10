@@ -209,7 +209,6 @@ class _Stats extends StatelessWidget {
       ],
     );
   }
-}
 
 class _Stat extends StatelessWidget {
   const _Stat({
@@ -219,9 +218,13 @@ class _Stat extends StatelessWidget {
     this.onTap,
   });
 
-  final int value;
-  final String label;
-  final Color? labelColor;
+  Future<void> _share(Post post) async {
+    await Clipboard.setData(
+        ClipboardData(text: '${Env.webAppUrl}/feed?highlight=${post.id}'));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Link copied.')));
+  }
 
   /// Followers / following open the people list.
   final VoidCallback? onTap;
@@ -237,7 +240,7 @@ class _Stat extends StatelessWidget {
           onFollowing: () => context.push(AppRoutes.following),
           onEdit: () => _edit(profile.username),
         ),
-      ],
+      ),
     );
     if (onTap == null) return content;
     return InkWell(
@@ -250,39 +253,60 @@ class _Stat extends StatelessWidget {
       ),
     );
   }
-}
 
-Color _bandColor(AppPalette palette, CredibilityBand band) => switch (band) {
-      CredibilityBand.high => palette.verified,
-      CredibilityBand.moderate => palette.warn,
-      CredibilityBand.low || CredibilityBand.poor => palette.accent2,
-      CredibilityBand.unrated => palette.muted,
-    };
+  Widget _postCard(BuildContext context, ProfileCubit cubit, FeedItem item) {
+    final post = item.post;
+    return PostCard(
+      key: ValueKey(
+          '${item is RepostedPost ? 'r${item.repostId}' : 'p'}${post.id}'),
+      item: item,
+      onLike: () => cubit.toggleLike(post),
+      onSave: () => cubit.toggleSave(post),
+      onRepost: () => cubit.toggleRepost(post),
+      onQuote: () => unawaited(_quote(cubit, post)),
+      myUserId: cubit.state.profile?.id,
+      onShare: () => unawaited(_share(post)),
+      onAuthorTap: (username) =>
+          unawaited(context.push(AppRoutes.channelFor(username))),
+    );
+  }
 
-/// One quiet line under the stats: the user's next step or standing.
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.profile, required this.application});
-
-  final Profile profile;
-  final OsintApplication? application;
-
-  @override
-  Widget build(BuildContext context) {
-    final access = context.watch<AccessCubit>().state;
-    final isAdmin = access.isAdmin || profile.role.isAdmin;
-    final isStaff = access.isStaff || isAdmin;
-
-    return Column(
+  Widget _profile(
+      BuildContext context, ProfileState state, ProfileCubit cubit) {
+    final profile = state.profile!;
+    final List<FeedItem> items = _showSaved
+        ? [for (final p in state.savedPosts) OriginalPost(p)]
+        : state.activity;
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 40),
       children: [
-        if (profile.isAnalyst) _CredibilityBar(profile: profile),
-        if (profile.isAnalyst && isStaff) const SizedBox(height: AppSpacing.lg),
-        if (isStaff)
-          _LineRow(
-            title: isAdmin ? 'Admin console' : 'Moderation',
-            action: 'Open →',
-            onTap: () => context.push(AppRoutes.admin),
-          ),
-        if (!profile.isAnalyst && !isStaff) _applicationRow(context),
+        ProfileHeader(
+          profile: profile,
+          stats: state.stats,
+          onFollowers: () => context.push(AppRoutes.followers),
+          onFollowing: () => context.push(AppRoutes.following),
+          onEdit: () => _edit(profile.username),
+        ),
+        const SizedBox(height: 4),
+        _Tabs(
+          saved: _showSaved,
+          onChanged: (saved) => setState(() => _showSaved = saved),
+        ),
+        if (items.isEmpty)
+          _showSaved
+              ? const SoftMessage(
+                  icon: Icons.bookmark_border_rounded,
+                  title: 'Nothing saved yet',
+                  body: 'Tap the bookmark on any post to keep it here.',
+                )
+              : const SoftMessage(
+                  icon: Icons.edit_note_rounded,
+                  title: 'No posts yet',
+                  body: 'What you post shows up here.',
+                )
+        else
+          for (final item in items) _postCard(context, cubit, item),
       ],
     );
   }
@@ -664,6 +688,16 @@ class _EditUsernameDialogState extends State<_EditUsernameDialog> {
                 )
               : const Text('Save'),
         ),
+        const SizedBox(height: 18),
+        Center(child: bar(160, 20)),
+        const SizedBox(height: 14),
+        Center(child: bar(200, 12)),
+        const SizedBox(height: 10),
+        Center(child: bar(140, 12)),
+        const SizedBox(height: 30),
+        row(),
+        row(),
+        row(),
       ],
     );
   }
