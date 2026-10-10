@@ -42,3 +42,13 @@ class WatchNewPosts implements StreamUseCase<Post, NoParams> {
   @override
   Stream<Post> call(NoParams params) => _repository.watchNewPosts();
 }
+
+class GetRepostsByUser implements UseCase<List<RepostedPost>, String> {
+  const GetRepostsByUser(this._repository);
+
+  final PostRepository _repository;
+
+  @override
+  Future<Result<List<RepostedPost>>> call(String userId) =>
+      _repository.getRepostsByUser(userId);
+}

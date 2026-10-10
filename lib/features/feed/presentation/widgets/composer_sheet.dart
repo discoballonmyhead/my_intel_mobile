@@ -167,36 +167,10 @@ class _ComposerSheetState extends State<ComposerSheet> {
   }
 
   Future<void> _editRegion() async {
-    final controller = TextEditingController(text: _region ?? '');
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Region'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'e.g. Mumbai, India'),
-          onSubmitted: (v) => Navigator.of(context).pop(v),
-        ),
-        actions: [
-          if (_region != null)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(''),
-              child: const Text('Remove'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _RegionDialog(initial: _region),
     );
-    controller.dispose();
     if (result == null || !mounted) return;
     final value = result.trim();
     setState(() => _region = value.isEmpty ? null : value);
@@ -485,6 +459,56 @@ class _ComposerSheetState extends State<ComposerSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Small dialog to type a region. It owns its controller, so the controller
+/// lives until the dialog has finished closing.
+class _RegionDialog extends StatefulWidget {
+  const _RegionDialog({this.initial});
+
+  final String? initial;
+
+  @override
+  State<_RegionDialog> createState() => _RegionDialogState();
+}
+
+class _RegionDialogState extends State<_RegionDialog> {
+  late final _controller = TextEditingController(text: widget.initial ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Region'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(hintText: 'e.g. Mumbai, India'),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        if (widget.initial != null)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(''),
+            child: const Text('Remove'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

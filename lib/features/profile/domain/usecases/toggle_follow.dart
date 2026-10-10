@@ -67,3 +67,21 @@ class GetFollowList implements UseCase<List<FollowListEntry>, FollowListParams> 
         offset: params.offset,
       );
 }
+
+class FollowListParams {
+  const FollowListParams(this.userId, {required this.followers});
+
+  final String userId;
+  final bool followers;
+}
+
+/// Followers of a user, or the people they follow.
+class GetFollowList implements UseCase<List<Profile>, FollowListParams> {
+  const GetFollowList(this._repository);
+
+  final ProfileRepository _repository;
+
+  @override
+  Future<Result<List<Profile>>> call(FollowListParams params) =>
+      _repository.getFollowList(params.userId, followers: params.followers);
+}

@@ -5,10 +5,12 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/post.dart';
+import '../../domain/post_updates.dart';
 import '../../domain/usecases/create_post.dart';
 import '../../domain/usecases/get_feed.dart';
 import '../../domain/usecases/manage_post.dart';
 import '../../domain/usecases/toggle_interaction.dart';
+import '../../../profile/domain/entities/profile.dart';
 import '../../../profile/domain/usecases/toggle_follow.dart';
 
 enum FeedStatus { initial, loading, ready, error }
@@ -26,7 +28,9 @@ class FeedProvider extends ChangeNotifier {
     required EditPost editPost,
     required DeletePost deletePost,
     required GetFollowedUserIds getFollowedUserIds,
+    PostUpdates? postUpdates,
   })  : _getFeed = getFeed,
+        _postUpdates = postUpdates,
         _getFollowedUserIds = getFollowedUserIds,
         _editPost = editPost,
         _deletePost = deletePost,
@@ -34,7 +38,9 @@ class FeedProvider extends ChangeNotifier {
         _toggleLike = toggleLike,
         _toggleSave = toggleSave,
         _toggleRepost = toggleRepost,
-        _watchNewPosts = watchNewPosts;
+        _watchNewPosts = watchNewPosts {
+    _listenForUpdates();
+  }
 
   final GetFeed _getFeed;
   final CreatePost _createPost;
@@ -47,6 +53,17 @@ class FeedProvider extends ChangeNotifier {
   final GetFollowedUserIds _getFollowedUserIds;
 
   StreamSubscription<Post>? _realtimeSub;
+  final PostUpdates? _postUpdates;
+  StreamSubscription<Post>? _updatesSub;
+
+  /// Applies changes made elsewhere (the Profile) to posts in the Feed.
+  void _listenForUpdates() {
+    _updatesSub ??= _postUpdates?.stream.listen((post) {
+      if (!_items.any((item) => item.post.id == post.id)) return;
+      _replacePost(post);
+      notifyListeners();
+    });
+  }
 
   List<FeedItem> _items = const [];
   FeedStatus _status = FeedStatus.initial;
@@ -157,6 +174,7 @@ class FeedProvider extends ChangeNotifier {
         _pending = _pending.where((p) => p.id != post.id).toList();
         _failure = null;
         notifyListeners();
+        _postUpdates?.publish(post);
         return true;
       },
     );
@@ -177,16 +195,42 @@ class FeedProvider extends ChangeNotifier {
         action: () => _toggleSave(post),
       );
 
-  Future<void> toggleRepost(Post post, {String? quote}) => _optimistic(
-        post,
-        preview: post.copyWith(
-          reposted: !post.reposted,
-          repostCount: post.reposted
-              ? (post.repostCount - 1).clamp(0, 1 << 30)
-              : post.repostCount + 1,
-        ),
-        action: () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
-      );
+  /// Reposts (optionally with a comment) or undoes a repost. With [me], your
+  /// repost shows at the top of the Feed straight away, and undo removes it.
+  Future<void> toggleRepost(Post post, {String? quote, Profile? me}) async {
+    await _optimistic(
+      post,
+      preview: post.copyWith(
+        reposted: !post.reposted,
+        repostCount: post.reposted
+            ? (post.repostCount - 1).clamp(0, 1 << 30)
+            : post.repostCount + 1,
+      ),
+      action: () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
+    );
+    if (me == null) return;
+    final now = _items.where((i) => i.post.id == post.id).firstOrNull?.post;
+    if (now == null || now.reposted == post.reposted) return; // failed
+    if (now.reposted) {
+      // The Feed hides reposts of your own posts; the original already shows.
+      if (post.author?.id == me.id) return;
+      _items = [
+        RepostedPost(now,
+            repostId: -now.id,
+            repostedAt: DateTime.now().toUtc(),
+            reposter: me,
+            quote: quote),
+        ..._items,
+      ];
+    } else {
+      _items = _items
+          .where((i) => !(i is RepostedPost &&
+              i.post.id == post.id &&
+              i.reposter?.id == me.id))
+          .toList();
+    }
+    notifyListeners();
+  }
 
   /// Swap in [preview] straight away, then reconcile with the server's answer.
   /// On failure the original post is restored and the failure surfaced.
@@ -208,6 +252,7 @@ class FeedProvider extends ChangeNotifier {
       (Post updated) {
         _replacePost(updated);
         notifyListeners();
+        _postUpdates?.publish(updated);
       },
     );
   }
@@ -311,6 +356,7 @@ class FeedProvider extends ChangeNotifier {
   @override
   void dispose() {
     _realtimeSub?.cancel();
+    _updatesSub?.cancel();
     _freshTimer?.cancel();
     super.dispose();
   }

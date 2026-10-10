@@ -36,6 +36,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   final SupabaseService _service;
   static const String _recoveryRedirect = 'io.mint.app://reset-password';
+  static const String _emailChangedRedirect = 'io.mint.app://email-changed';
 
   @override
   Stream<AuthUserModel?> get authStateChanges => _service.auth.onAuthStateChange

@@ -6,12 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/auth/domain/usecases/account_security.dart';
 import '../../features/auth/domain/usecases/reset_password.dart';
 import '../../features/auth/domain/usecases/sign_in.dart';
 import '../../features/auth/domain/usecases/sign_out.dart';
 import '../../features/auth/domain/usecases/sign_up.dart';
 import '../../features/auth/domain/usecases/watch_auth_state.dart';
 import '../../features/auth/presentation/providers/auth_cubit.dart';
+import '../../features/feed/domain/post_updates.dart';
 import '../../features/feed/data/datasources/post_remote_data_source.dart';
 import '../../features/feed/data/repositories/post_repository_impl.dart';
 import '../../features/feed/domain/repositories/post_repository.dart';
@@ -120,6 +122,8 @@ class Injection {
     sl.registerLazySingleton(() => SignOut(sl()));
     sl.registerLazySingleton(() => SendPasswordReset(sl()));
     sl.registerLazySingleton(() => UpdatePassword(sl()));
+    sl.registerLazySingleton(() => ChangePassword(sl()));
+    sl.registerLazySingleton(() => ChangeEmail(sl()));
     sl.registerLazySingleton(() => ResendVerification(sl()));
     sl.registerLazySingleton(() => WatchAuthState(sl()));
     // Profile
@@ -128,6 +132,7 @@ class Injection {
     sl.registerLazySingleton(() => UpdateProfile(sl()));
     sl.registerLazySingleton(() => ToggleFollow(sl()));
     sl.registerLazySingleton(() => GetFollowStats(sl()));
+    sl.registerLazySingleton(() => GetFollowList(sl()));
     sl.registerLazySingleton(() => GetFollowedUserIds(sl()));
     sl.registerLazySingleton(() => ApplyForOsint(sl()));
     sl.registerLazySingleton(() => GetMyApplication(sl()));
@@ -135,6 +140,8 @@ class Injection {
     sl.registerLazySingleton(() => GetFeed(sl()));
     sl.registerLazySingleton(() => GetSavedPosts(sl()));
     sl.registerLazySingleton(() => GetPostsByAuthor(sl()));
+    sl.registerLazySingleton(() => GetRepostsByUser(sl()));
+    sl.registerLazySingleton(() => PostUpdates());
     sl.registerLazySingleton(() => WatchNewPosts(sl()));
     sl.registerLazySingleton(() => CreatePost(sl()));
     sl.registerLazySingleton(() => ToggleLike(sl()));
@@ -181,6 +188,11 @@ class Injection {
           getFollowStats: sl(),
           getPostsByAuthor: sl(),
           getSavedPosts: sl(),
+          toggleLike: sl(),
+          toggleSave: sl(),
+          toggleRepost: sl(),
+          getRepostsByUser: sl(),
+          postUpdates: sl(),
         ));
     sl.registerLazySingleton<FeedProvider>(() => FeedProvider(
           getFeed: sl(),
@@ -192,6 +204,7 @@ class Injection {
           editPost: sl(),
           deletePost: sl(),
           getFollowedUserIds: sl(),
+          postUpdates: sl(),
         ));
     sl.registerLazySingleton<StoryProvider>(() => StoryProvider(
           getStories: sl(),

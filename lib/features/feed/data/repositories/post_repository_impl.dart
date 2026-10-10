@@ -130,9 +130,57 @@ class PostRepositoryImpl implements PostRepository {
           .where(_isVisible)
           .toList();
       final profiles = await _profiles.profilesByIds([authorId]);
-      return rows
-          .map((row) => PostModel.fromJson(row, author: profiles[authorId]))
+      final (liked, saved, reposted) = await _viewerMarks();
+      return rows.map((row) {
+        final id = (row['id'] as num).toInt();
+        return PostModel.fromJson(row,
+            author: profiles[authorId],
+            liked: liked.contains(id),
+            saved: saved.contains(id),
+            reposted: reposted.contains(id));
+      }).toList();
+    });
+  }
+
+  /// The viewer's likes, saves and reposts, so cards outside the Feed show
+  /// (and toggle) the right state.
+  Future<(Set<int>, Set<int>, Set<int>)> _viewerMarks() async => (
+        await _remote.likedPostIds(),
+        await _remote.savedPostIds(),
+        await _remote.repostedPostIds(),
+      );
+
+  @override
+  Future<Result<List<RepostedPost>>> getRepostsByUser(String userId) {
+    return guard(() async {
+      final reposts = await _remote.fetchRepostsByUser(userId);
+      if (reposts.isEmpty) return <RepostedPost>[];
+      final rows = (await _remote.fetchPostsByIds(
+              reposts.map((r) => r.postId).toSet().toList()))
+          .where(_isVisible)
           .toList();
+      final byId = {for (final r in rows) (r['id'] as num).toInt(): r};
+      final profiles = await _profiles.profilesByIds([
+        userId,
+        ...rows.map((r) => r['author_id'] as String?),
+      ]);
+      final (liked, saved, reposted) = await _viewerMarks();
+      return [
+        for (final r in reposts)
+          // Skip reposts of your own posts: the original is already listed.
+          if (byId[r.postId] case final row? when row['author_id'] != userId)
+            RepostedPost(
+              PostModel.fromJson(row,
+                  author: profiles[row['author_id']],
+                  liked: liked.contains(r.postId),
+                  saved: saved.contains(r.postId),
+                  reposted: reposted.contains(r.postId)),
+              repostId: r.id,
+              repostedAt: r.createdAt,
+              reposter: profiles[userId],
+              quote: r.quoteBody,
+            ),
+      ];
     });
   }
 
@@ -150,11 +198,16 @@ class PostRepositoryImpl implements PostRepository {
       return ids
           .map((id) => byId[id])
           .whereType<Map<String, dynamic>>()
-          .map((row) => PostModel.fromJson(
-                row,
-                author: profiles[row['author_id']],
-                saved: true,
-              ))
+          .map((row) {
+            final id = (row['id'] as num).toInt();
+            return PostModel.fromJson(
+              row,
+              author: profiles[row['author_id']],
+              liked: liked.contains(id),
+              saved: true,
+              reposted: reposted.contains(id),
+            );
+          })
           .toList();
     });
   }
