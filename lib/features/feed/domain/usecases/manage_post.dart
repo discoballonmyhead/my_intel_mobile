@@ -24,7 +24,8 @@ class EditPost implements UseCase<Post, EditPostParams> {
       return const Err(ValidationFailure('A post cannot be empty.'));
     }
     if (body.length > CreatePost.maxLength) {
-      return const Err(ValidationFailure('Posts are limited to 2000 characters.'));
+      return const Err(
+          ValidationFailure('Posts are limited to ${CreatePost.maxLength} characters.'));
     }
     if (body == params.post.body.trim()) return Ok(params.post);
     return _repository.editPost(params.post, body);

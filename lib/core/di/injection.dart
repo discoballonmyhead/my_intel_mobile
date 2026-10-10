@@ -140,6 +140,7 @@ class Injection {
     sl.registerLazySingleton(() => ToggleLike(sl()));
     sl.registerLazySingleton(() => ToggleSave(sl()));
     sl.registerLazySingleton(() => ToggleRepost(sl()));
+    sl.registerLazySingleton(() => VotePoll(sl()));
     // Stories
     sl.registerLazySingleton(() => GetStories(sl()));
     sl.registerLazySingleton(() => GetStory(sl()));
@@ -188,6 +189,7 @@ class Injection {
           toggleLike: sl(),
           toggleSave: sl(),
           toggleRepost: sl(),
+          votePoll: sl(),
           watchNewPosts: sl(),
           editPost: sl(),
           deletePost: sl(),

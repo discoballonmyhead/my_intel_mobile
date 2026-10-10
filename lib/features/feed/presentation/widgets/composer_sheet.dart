@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,13 +12,15 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../profile/presentation/providers/profile_cubit.dart';
+import '../../domain/entities/post_extras.dart';
 import '../../domain/usecases/create_post.dart';
 import 'composer_attach_menu.dart';
 import 'composer_emoji_panel.dart';
 
-/// Full-height "New post" sheet. Text on top; one quiet row at the bottom with
-/// the attach and emoji buttons, then region and News chips. News asks for
-/// confirmation first, as on the web app.
+/// Full-height "New post" sheet. Text on top, then up to four attachments
+/// and an optional poll; one quiet row at the bottom with the attach and emoji
+/// buttons, then region and News chips. News asks for confirmation first, as
+/// on the web app, and cannot carry a poll.
 class ComposerSheet extends StatefulWidget {
   const ComposerSheet({super.key});
 
@@ -35,11 +38,33 @@ class ComposerSheet extends StatefulWidget {
   State<ComposerSheet> createState() => _ComposerSheetState();
 }
 
-class _PickedPhoto {
-  const _PickedPhoto(this.bytes, this.extension, this.mimeType);
-  final Uint8List bytes;
-  final String extension;
-  final String mimeType;
+const _audioExtensions = ['mp3', 'm4a', 'aac', 'wav', 'ogg'];
+
+String? _mimeFor(AttachmentKind kind, String ext) => switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      'heic' || 'heif' => 'image/heic',
+      'mp4' || 'm4v' => 'video/mp4',
+      'mov' => 'video/quicktime',
+      'webm' => kind == AttachmentKind.audio ? 'audio/webm' : 'video/webm',
+      'mp3' => 'audio/mpeg',
+      'm4a' => 'audio/mp4',
+      'aac' => 'audio/aac',
+      'wav' => 'audio/wav',
+      'ogg' => 'audio/ogg',
+      'pdf' => 'application/pdf',
+      'txt' => 'text/plain',
+      'csv' => 'text/csv',
+      _ => null,
+    };
+
+String _extensionOf(String name, String fallback) {
+  final dot = name.lastIndexOf('.');
+  if (dot < 0 || dot == name.length - 1) return fallback;
+  final ext = name.substring(dot + 1).toLowerCase();
+  return ext == 'jpeg' ? 'jpg' : ext;
 }
 
 class _ComposerSheetState extends State<ComposerSheet> {
@@ -47,7 +72,11 @@ class _ComposerSheetState extends State<ComposerSheet> {
   final _focus = FocusNode();
   String? _region;
   bool _news = false;
-  _PickedPhoto? _photo;
+  final List<PendingAttachment> _attachments = [];
+
+  /// Option fields of the poll being written; null when there is no poll.
+  List<TextEditingController>? _pollOptions;
+  int _pollHours = 24;
   bool _attachOpen = false;
   bool _emojiOpen = false;
   String? _notice;
@@ -64,27 +93,41 @@ class _ComposerSheetState extends State<ComposerSheet> {
   @override
   void dispose() {
     _noticeTimer?.cancel();
+    _disposePoll();
     _body.dispose();
     _focus.dispose();
     super.dispose();
   }
 
   int get _left => CreatePost.maxLength - _body.text.length;
-  bool get _canPost =>
-      (_body.text.trim().isNotEmpty || _photo != null) && _left >= 0;
+  PollDraft? get _pollDraft {
+    final fields = _pollOptions;
+    if (fields == null) return null;
+    return PollDraft(
+        options: [for (final f in fields) f.text], durationHours: _pollHours);
+  }
+
+  int get _slotsLeft => CreatePost.maxAttachments - _attachments.length;
+
+  bool get _canPost {
+    final poll = _pollDraft;
+    if (poll != null && (!poll.isValid || _news)) return false;
+    return (_body.text.trim().isNotEmpty ||
+            _attachments.isNotEmpty ||
+            poll != null) &&
+        _left >= 0;
+  }
 
   Future<void> _submit() async {
     if (!_canPost) return;
     if (_news && !await _confirmNews()) return;
     if (!mounted) return;
-    final photo = _photo;
     Navigator.of(context).pop(CreatePostParams(
       body: _body.text.trim(),
       region: _region,
       postType: _news ? 'news' : 'general',
-      mediaBytes: photo?.bytes,
-      mediaExtension: photo?.extension,
-      mediaContentType: photo?.mimeType,
+      attachments: List.of(_attachments),
+      poll: _pollDraft,
     ));
   }
 
@@ -124,38 +167,122 @@ class _ComposerSheetState extends State<ComposerSheet> {
 
   Future<void> _onAttach(AttachKind kind) async {
     setState(() => _attachOpen = false);
+    if (kind == AttachKind.poll) {
+      _addPoll();
+      return;
+    }
+    if (_slotsLeft <= 0) {
+      _showNotice('A post can have up to ${CreatePost.maxAttachments} attachments.');
+      return;
+    }
     switch (kind) {
       case AttachKind.photo:
-        await _pickPhoto();
+        await _pickPhotos();
       case AttachKind.video:
-        _showNotice('Videos are coming soon.');
+        await _pickVideo();
       case AttachKind.file:
-        _showNotice('Files are coming soon.');
+        await _pickFile(AttachmentKind.file);
       case AttachKind.audio:
-        _showNotice('Audio is coming soon.');
+        await _pickFile(AttachmentKind.audio);
       case AttachKind.poll:
-        _showNotice('Polls are coming soon.');
+        break;
     }
   }
 
-  Future<void> _pickPhoto() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+  Future<void> _pickPhotos() async {
+    final files = await ImagePicker().pickMultiImage(
       maxWidth: 2048,
       imageQuality: 85,
+      limit: _slotsLeft,
+    );
+    for (final file in files.take(_slotsLeft)) {
+      if (!mounted) return;
+      final bytes = await file.readAsBytes();
+      _addAttachment(AttachmentKind.image, bytes, file.name, 'jpg');
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    final file = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (file == null || !mounted) return;
+    if (await file.length() > AttachmentKind.video.maxBytes) {
+      _tooLarge(AttachmentKind.video);
+      return;
+    }
+    final bytes = await file.readAsBytes();
+    _addAttachment(AttachmentKind.video, bytes, file.name, 'mp4');
+  }
+
+  Future<void> _pickFile(AttachmentKind kind) async {
+    final audio = kind == AttachmentKind.audio;
+    final file = await FilePicker.pickFile(
+      type: audio ? FileType.custom : FileType.any,
+      allowedExtensions: audio ? _audioExtensions : null,
     );
     if (file == null || !mounted) return;
+    if ((await file.length() ?? 0) > kind.maxBytes) {
+      _tooLarge(kind);
+      return;
+    }
     final bytes = await file.readAsBytes();
-    final name = file.name.toLowerCase();
-    final ext = name.contains('.') ? name.split('.').last : 'jpg';
-    final mime = switch (ext) {
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      'heic' || 'heif' => 'image/heic',
-      _ => 'image/jpeg',
-    };
-    if (!mounted) return;
-    setState(() => _photo = _PickedPhoto(bytes, ext == 'jpeg' ? 'jpg' : ext, mime));
+    _addAttachment(kind, bytes, file.name, audio ? 'm4a' : 'bin');
+  }
+
+  void _addAttachment(
+      AttachmentKind kind, Uint8List bytes, String name, String fallbackExt) {
+    if (!mounted || _slotsLeft <= 0) return;
+    if (bytes.length > kind.maxBytes) {
+      _tooLarge(kind);
+      return;
+    }
+    final ext = _extensionOf(name, fallbackExt);
+    setState(() => _attachments.add(PendingAttachment(
+          kind: kind,
+          bytes: bytes,
+          extension: ext,
+          contentType: _mimeFor(kind, ext),
+          fileName: name,
+        )));
+  }
+
+  void _tooLarge(AttachmentKind kind) {
+    final mb = kind.maxBytes ~/ (1024 * 1024);
+    _showNotice('That file is over the $mb MB limit for ${kind.name}s.');
+  }
+
+  void _addPoll() {
+    if (_pollOptions != null) return;
+    if (_news) {
+      _showNotice('News posts cannot have a poll.');
+      return;
+    }
+    setState(() {
+      _pollOptions = [TextEditingController(), TextEditingController()];
+      _pollHours = 24;
+    });
+  }
+
+  void _removePoll() {
+    final fields = _pollOptions;
+    setState(() => _pollOptions = null);
+    if (fields != null) _disposeAfterFrame(fields);
+  }
+
+  /// Option fields are still mounted during the setState that removes them,
+  /// so their controllers are disposed once that frame is done.
+  void _disposeAfterFrame(List<TextEditingController> controllers) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final c in controllers) {
+        c.dispose();
+      }
+    });
+  }
+
+  void _disposePoll() {
+    for (final c in _pollOptions ?? const <TextEditingController>[]) {
+      c.dispose();
+    }
+    _pollOptions = null;
   }
 
   void _showNotice(String text) {
@@ -340,13 +467,43 @@ class _ComposerSheetState extends State<ComposerSheet> {
                                   ),
                                 ),
                               ),
-                              if (_photo != null)
+                              if (_attachments.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
-                                  child: _PhotoThumb(
-                                    bytes: _photo!.bytes,
-                                    onRemove: () =>
-                                        setState(() => _photo = null),
+                                  child: SizedBox(
+                                    height: 96,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _attachments.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(width: 8),
+                                      itemBuilder: (_, i) => _AttachmentThumb(
+                                        attachment: _attachments[i],
+                                        onRemove: () => setState(
+                                            () => _attachments.removeAt(i)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_pollOptions case final fields?)
+                                Flexible(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _PollEditor(
+                                      fields: fields,
+                                      hours: _pollHours,
+                                      onChanged: () => setState(() {}),
+                                      onAddOption: () => setState(() =>
+                                          fields.add(TextEditingController())),
+                                      onRemoveOption: (i) {
+                                        final removed = fields.removeAt(i);
+                                        setState(() {});
+                                        _disposeAfterFrame([removed]);
+                                      },
+                                      onHours: (h) =>
+                                          setState(() => _pollHours = h),
+                                      onRemove: _removePoll,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -386,7 +543,9 @@ class _ComposerSheetState extends State<ComposerSheet> {
                         _RoundIcon(
                           icon: Icons.add_photo_alternate_outlined,
                           color: palette.accent,
-                          active: _attachOpen || _photo != null,
+                          active: _attachOpen ||
+                              _attachments.isNotEmpty ||
+                              _pollOptions != null,
                           tooltip: 'Attach',
                           onTap: _toggleAttach,
                         ),
@@ -417,6 +576,10 @@ class _ComposerSheetState extends State<ComposerSheet> {
                           active: _news,
                           onTap: () {
                             HapticFeedback.selectionClick();
+                            if (!_news && _pollOptions != null) {
+                              _showNotice('News posts cannot have a poll.');
+                              return;
+                            }
                             setState(() => _news = !_news);
                           },
                         ),
@@ -614,29 +777,53 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _PhotoThumb extends StatelessWidget {
-  const _PhotoThumb({required this.bytes, required this.onRemove});
+class _AttachmentThumb extends StatelessWidget {
+  const _AttachmentThumb({required this.attachment, required this.onRemove});
 
-  final Uint8List bytes;
+  final PendingAttachment attachment;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final (icon, color) = switch (attachment.kind) {
+      AttachmentKind.video => (Icons.videocam_outlined, palette.accent2),
+      AttachmentKind.audio => (Icons.mic_none_rounded, palette.warn),
+      _ => (Icons.description_outlined, palette.verified),
+    };
     return SizedBox.square(
-      dimension: 124,
+      dimension: 96,
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.memory(bytes, fit: BoxFit.cover),
+              child: attachment.kind == AttachmentKind.image
+                  ? Image.memory(attachment.bytes, fit: BoxFit.cover)
+                  : Container(
+                      color: palette.surface2,
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: color, size: 26),
+                          const SizedBox(height: 6),
+                          Text(attachment.fileName ?? attachment.kind.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 11, color: palette.muted)),
+                        ],
+                      ),
+                    ),
             ),
           ),
           Positioned(
-            top: 6,
-            right: 6,
+            top: 4,
+            right: 4,
             child: Semantics(
-              label: 'Remove photo',
+              label: 'Remove attachment',
               button: true,
               child: GestureDetector(
                 onTap: onRemove,
@@ -659,9 +846,120 @@ class _PhotoThumb extends StatelessWidget {
   }
 }
 
+/// Two to four option fields, a length picker and a remove button.
+class _PollEditor extends StatelessWidget {
+  const _PollEditor({
+    required this.fields,
+    required this.hours,
+    required this.onChanged,
+    required this.onAddOption,
+    required this.onRemoveOption,
+    required this.onHours,
+    required this.onRemove,
+  });
+
+  final List<TextEditingController> fields;
+  final int hours;
+  final VoidCallback onChanged;
+  final VoidCallback onAddOption;
+  final ValueChanged<int> onRemoveOption;
+  final ValueChanged<int> onHours;
+  final VoidCallback onRemove;
+
+  static String _label(int h) => h < 24 ? '${h}h' : '${h ~/ 24}d';
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.poll_outlined, size: 18, color: palette.muted),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text('Poll',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+              IconButton(
+                tooltip: 'Remove poll',
+                onPressed: onRemove,
+                icon: const Icon(Icons.close_rounded, size: 20),
+                color: palette.muted,
+              ),
+            ],
+          ),
+          for (var i = 0; i < fields.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6, right: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: fields[i],
+                      maxLength: PollDraft.maxLabelLength,
+                      onChanged: (_) => onChanged(),
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'Option ${i + 1}',
+                        counterText: '',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  if (fields.length > PollDraft.minOptions)
+                    IconButton(
+                      tooltip: 'Remove option',
+                      onPressed: () => onRemoveOption(i),
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      color: palette.muted,
+                    ),
+                ],
+              ),
+            ),
+          Row(
+            children: [
+              if (fields.length < PollDraft.maxOptions)
+                TextButton.icon(
+                  onPressed: onAddOption,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add option'),
+                ),
+              const Spacer(),
+              Text('Ends in', style: TextStyle(fontSize: 13, color: palette.muted)),
+              const SizedBox(width: 6),
+              DropdownButton<int>(
+                value: hours,
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final h in PollDraft.durationChoices)
+                    DropdownMenuItem(value: h, child: Text(_label(h))),
+                ],
+                onChanged: (h) => h == null ? null : onHours(h),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Fills as the post approaches the length limit; shows the count near it.
 class _CharRing extends StatelessWidget {
   const _CharRing({required this.left});
+
+  /// Characters left when the count appears and the ring turns amber.
+  static const int warnAt = 50;
 
   final int left;
 
@@ -672,7 +970,7 @@ class _CharRing extends StatelessWidget {
     final used = (max - left).clamp(0, max);
     final color = left < 0
         ? palette.accent2
-        : left <= 200
+        : left <= _CharRing.warnAt
             ? palette.warn
             : palette.accent;
 
@@ -681,7 +979,7 @@ class _CharRing extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (left <= 200) ...[
+          if (left <= _CharRing.warnAt) ...[
             Text('$left',
                 style: GoogleFonts.inter(
                     fontSize: 12, fontWeight: FontWeight.w600, color: color)),

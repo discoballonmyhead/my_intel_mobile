@@ -8,6 +8,8 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
+import 'post_attachments.dart';
+import 'post_poll_view.dart';
 
 /// One post in the feed, "clean & airy": round avatar, bold name with role
 /// icon and time on the right, plain text, rounded photo, a soft
@@ -131,12 +133,16 @@ class PostCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _Header(post: post, onAuthorTap: onAuthorTap, onMore: onMore),
-                        if (post.isUnderReview || post.isRemoved) ...[
+                        if (post.isUnderReview ||
+                            post.isPendingReview ||
+                            post.isRemoved) ...[
                           const SizedBox(height: 4),
                           Text(
                             post.isRemoved
                                 ? 'Removed by moderators · only you can see this'
-                                : 'Under review',
+                                : post.isPendingReview
+                                    ? 'Waiting for review · only you can see this'
+                                    : 'Under review',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -160,9 +166,18 @@ class PostCard extends StatelessWidget {
                           ),
                         ] else
                           Text(post.body, style: _bodyStyle(onSurface)),
-                        if (post.hasMedia) ...[
+                        // media_url only mirrors the first photo when a post
+                        // has attachments, so it is the fallback, not both.
+                        if (post.hasAttachments) ...[
+                          const SizedBox(height: 10),
+                          PostAttachments(attachments: post.attachments),
+                        ] else if (post.hasMedia) ...[
                           const SizedBox(height: 10),
                           _PostImage(url: post.mediaUrl!),
+                        ],
+                        if (post.poll case final poll?) ...[
+                          const SizedBox(height: 10),
+                          PostPollView(poll: poll, onVote: onVote),
                         ],
                         _MetaLine(post: post),
                         const SizedBox(height: 2),
