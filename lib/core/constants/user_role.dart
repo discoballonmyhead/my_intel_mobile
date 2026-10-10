@@ -26,6 +26,15 @@ enum UserRole {
         _ => UserRole.public,
       };
 
+  /// Sentence-case name for people-facing text ("Member", "OSINT analyst").
+  String get displayName => switch (this) {
+        public => 'Member',
+        reporter => 'Reporter',
+        osint => 'OSINT analyst',
+        moderator => 'Moderator',
+        admin => 'Admin',
+      };
+
   bool get canPublishStories => this == osint || this == admin;
   bool get isAdmin => this == admin;
   bool get isStaff => this == admin || this == moderator;

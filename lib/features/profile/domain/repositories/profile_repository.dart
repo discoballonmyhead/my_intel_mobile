@@ -28,6 +28,9 @@ abstract interface class ProfileRepository {
 
   Future<Result<List<String>>> getFollowedUserIds();
 
+  Future<Result<List<Profile>>> getFollowList(String userId,
+      {required bool followers});
+
   Future<Result<List<Profile>>> searchProfiles(String query, {int limit = 10});
 
   Future<Result<void>> submitOsintApplication({

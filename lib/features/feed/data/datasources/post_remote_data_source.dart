@@ -19,6 +19,9 @@ abstract interface class PostRemoteDataSource {
       {int limit});
   Future<List<RepostRow>> fetchRecentReposts({int limit});
 
+  /// One user's reposts, newest first (the web profile reads the same table).
+  Future<List<RepostRow>> fetchRepostsByUser(String userId, {int limit});
+
   Future<Set<int>> likedPostIds();
   Future<Set<int>> savedPostIds();
   Future<Set<int>> repostedPostIds();
@@ -96,6 +99,17 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
     final res = await _service.rpc<List<dynamic>>('feed_get_posts_by_author',
         params: {'p_author_id': authorId, 'p_limit': limit});
     return List<Map<String, dynamic>>.from(res ?? []);
+  }
+
+  @override
+  Future<List<RepostRow>> fetchRepostsByUser(String userId, {int limit = 50}) async {
+    final rows = await _service.content
+        .from('reposts')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return [for (final r in rows) RepostRow.fromJson(r)];
   }
 
   @override

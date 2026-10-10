@@ -3,9 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../providers/moderation_provider.dart';
+import '../../../profile/presentation/widgets/profile_ui.dart';
 
 /// Writes to `moderation.feedback`, whose `ratings` column is jsonb — the
 /// per-area scores go in as a map.
@@ -58,66 +57,69 @@ class _FeedbackPageState extends State<FeedbackPage> {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      appBar: AppBar(title: const Text('FEEDBACK')),
+      appBar: softAppBar(context, 'Send feedback'),
       body: ContentColumn(
         child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(0, 16, 0, 40),
           children: [
-            Text(
-              'How is it working for you?',
-              style: Theme.of(context).textTheme.titleMedium,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 16),
+              child: Text('How is MINT working for you?',
+                  style: inter(18, weight: FontWeight.w600, color: onSurface)),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            ..._areas.map((area) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        area.toUpperCase(),
-                        style: AppTypography.mono(
-                          size: 10,
-                          color: palette.muted,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        children: List.generate(5, (i) {
-                          final value = i + 1;
-                          final selected = (_ratings[area] ?? 0) >= value;
-                          return IconButton(
-                            onPressed: () =>
-                                setState(() => _ratings[area] = value),
-                            icon: Icon(
-                              selected ? Icons.star_rounded : Icons.star_border_rounded,
-                              color: selected ? palette.accent : palette.muted,
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < _areas.length; i++) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 6, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(_areas[i],
+                                style: inter(16, color: onSurface)),
+                          ),
+                          for (var v = 1; v <= 5; v++)
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: '$v of 5',
+                              onPressed: () => setState(() => _ratings[_areas[i]] = v),
+                              icon: Icon(
+                                (_ratings[_areas[i]] ?? 0) >= v
+                                    ? Icons.star_rounded
+                                    : Icons.star_border_rounded,
+                                color: (_ratings[_areas[i]] ?? 0) >= v
+                                    ? palette.accent
+                                    : palette.muted,
+                              ),
                             ),
-                          );
-                        }),
+                        ],
                       ),
-                    ],
-                  ),
-                )),
-            TextField(
-              controller: _comment,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                hintText: 'Anything else? (optional)',
+                    ),
+                    if (i < _areas.length - 1)
+                      Divider(height: 1, indent: 16, endIndent: 16, color: palette.border),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            FilledButton(
-              onPressed: _ratings.isEmpty || _sending ? null : _submit,
-              child: _sending
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('SEND FEEDBACK'),
+            SoftField(
+              label: 'Anything else? (optional)',
+              controller: _comment,
+              hint: 'Tell us what to improve',
+              maxLines: 4,
+            ),
+            const SizedBox(height: 4),
+            PillButton(
+              label: 'Send feedback',
+              loading: _sending,
+              onPressed: _ratings.isEmpty ? null : _submit,
             ),
           ],
         ),

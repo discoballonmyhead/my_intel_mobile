@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/post.dart';
+import '../../domain/post_updates.dart';
 import '../../domain/usecases/create_post.dart';
 import '../../domain/usecases/get_feed.dart';
 import '../../domain/usecases/manage_post.dart';
@@ -27,7 +28,9 @@ class FeedProvider extends ChangeNotifier {
     required EditPost editPost,
     required DeletePost deletePost,
     required GetFollowedUserIds getFollowedUserIds,
+    PostUpdates? postUpdates,
   })  : _getFeed = getFeed,
+        _postUpdates = postUpdates,
         _getFollowedUserIds = getFollowedUserIds,
         _editPost = editPost,
         _deletePost = deletePost,
@@ -50,6 +53,17 @@ class FeedProvider extends ChangeNotifier {
   final GetFollowedUserIds _getFollowedUserIds;
 
   StreamSubscription<Post>? _realtimeSub;
+  final PostUpdates? _postUpdates;
+  StreamSubscription<Post>? _updatesSub;
+
+  /// Applies changes made elsewhere (the Profile) to posts in the Feed.
+  void _listenForUpdates() {
+    _updatesSub ??= _postUpdates?.stream.listen((post) {
+      if (!_items.any((item) => item.post.id == post.id)) return;
+      _replacePost(post);
+      notifyListeners();
+    });
+  }
 
   List<FeedItem> _items = const [];
   FeedStatus _status = FeedStatus.initial;
@@ -160,6 +174,7 @@ class FeedProvider extends ChangeNotifier {
         _pending = _pending.where((p) => p.id != post.id).toList();
         _failure = null;
         notifyListeners();
+        _postUpdates?.publish(post);
         return true;
       },
     );
@@ -231,6 +246,7 @@ class FeedProvider extends ChangeNotifier {
       (Post updated) {
         _replacePost(updated);
         notifyListeners();
+        _postUpdates?.publish(updated);
       },
     );
   }
@@ -334,6 +350,7 @@ class FeedProvider extends ChangeNotifier {
   @override
   void dispose() {
     _realtimeSub?.cancel();
+    _updatesSub?.cancel();
     _freshTimer?.cancel();
     super.dispose();
   }

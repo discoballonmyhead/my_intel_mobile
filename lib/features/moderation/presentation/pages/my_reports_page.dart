@@ -5,12 +5,12 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../cubits/my_reports_cubit.dart';
 import '../widgets/report_labels.dart';
+import '../../../profile/presentation/widgets/profile_ui.dart';
 
 class MyReportsPage extends StatelessWidget {
   const MyReportsPage({super.key});
@@ -18,7 +18,7 @@ class MyReportsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('MY REPORTS')),
+      appBar: softAppBar(context, 'My reports'),
       body: BlocBuilder<MyReportsCubit, MyReportsState>(
         builder: (context, state) {
           final cubit = context.read<MyReportsCubit>();
@@ -32,9 +32,12 @@ class MyReportsPage extends StatelessWidget {
             );
           }
           if (state.reports.isEmpty) {
-            return const AppEmptyView(
-              message: 'You have not reported anything',
-              icon: Icons.flag_outlined,
+            return const Center(
+              child: SoftMessage(
+                icon: Icons.flag_outlined,
+                title: 'You haven\u2019t reported anything',
+                body: 'Posts you report show up here with what happened to them.',
+              ),
             );
           }
           return RefreshIndicator(
@@ -55,7 +58,7 @@ class MyReportsPage extends StatelessWidget {
                       r.resolvedAt == null
                           ? 'Reported ${r.createdAt.timeAgo}'
                           : 'Closed ${r.resolvedAt!.timeAgo}',
-                      style: AppTypography.mono(size: 9, color: palette.muted),
+                      style: inter(13, color: palette.muted),
                     ),
                     trailing: ReportStatusChip(status: r.status),
                     contentPadding:
