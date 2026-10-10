@@ -1,0 +1,16 @@
+# test_plan: composer.region.add
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [composer]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- runFlow: ../subflows/open_composer.yaml
+- tapOn: "Add region"
+- assertVisible: "Region"
+- inputText: "Mumbai, India"
+- tapOn: "Save"
+- assertVisible: "Mumbai, India"
+- tapOn: "Mumbai, India"
+- tapOn: "Remove"
+- assertVisible: "Add region"
+- tapOn: "Close"

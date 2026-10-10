@@ -1,0 +1,12 @@
+# test_plan: intel.list.following
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [intel]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Intel.*"
+- tapOn: "Following"
+- assertVisible: "Nothing from people you follow yet"
+- takeScreenshot: intel_following
+- tapOn: "All"
+- assertNotVisible: "Nothing from people you follow yet"

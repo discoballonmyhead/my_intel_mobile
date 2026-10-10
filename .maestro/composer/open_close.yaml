@@ -1,0 +1,20 @@
+# test_plan: composer.basics.open_close, composer.basics.post_enabled
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [composer]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- runFlow: ../subflows/open_composer.yaml
+- assertVisible: "New post"
+- assertVisible:
+    text: "Post"
+    enabled: false
+- assertVisible: "Attach"
+- assertVisible: "Emoji"
+- assertVisible: "News"
+- inputText: "Maestro check, not posted"
+- assertVisible:
+    text: "Post"
+    enabled: true
+- tapOn: "Close"
+- assertNotVisible: "Add region"

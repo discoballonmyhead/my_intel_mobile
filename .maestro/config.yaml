@@ -1,0 +1,10 @@
+# Maestro workspace config. Run everything with: maestro test .maestro
+# Flows that need a signed-in user read MINT_EMAIL / MINT_PASSWORD (pass with -e).
+flows:
+  - "auth/*"
+  - "feed/*"
+  - "composer/*"
+  - "intel/*"
+  - "profile/*"
+executionOrder:
+  continueOnFailure: true

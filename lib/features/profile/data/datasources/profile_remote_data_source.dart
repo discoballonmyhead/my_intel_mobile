@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/db_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
+import '../../../../core/network/rpc_runner.dart';
 import '../../../../core/network/supabase_service.dart';
 import '../models/profile_model.dart';
 import 'dart:developer' as dev;
@@ -9,11 +11,21 @@ abstract interface class ProfileRemoteDataSource {
   Future<ProfileModel> getProfile(String userId);
   Future<ProfileModel> getProfileByUsername(String username);
   Future<ProfileModel> updateProfile(String userId, {String? username});
-  Future<({int followers, int following, bool isFollowing})> getFollowStats(
-      String targetUserId);
+  Future<({int followers, int following, bool isFollowing, bool followsYou})>
+      getFollowStats(String targetUserId);
   Future<bool> isFollowing(String targetUserId);
   Future<void> follow(String targetUserId);
   Future<void> unfollow(String targetUserId);
+
+  /// Follow (true) or unfollow (false); returns the target's fresh stats.
+  Future<Map<String, dynamic>> setFollowing(String targetUserId, bool follow);
+
+  /// Atomic server-side toggle; returns the target's fresh stats.
+  Future<Map<String, dynamic>> toggleFollowing(String targetUserId);
+
+  /// Raw rows of `follow_get_list` (user_id, followed_at, is_following).
+  Future<List<Map<String, dynamic>>> followList(String profileId,
+      {required String kind, int limit, int offset});
   Future<List<String>> getFollowedUserIds();
   Future<List<ProfileModel>> searchProfiles(String query, {int limit});
   Future<void> submitOsintApplication(Map<String, dynamic> payload);
@@ -126,68 +138,66 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     }
   }
 
-  @override
-  Future<({int followers, int following, bool isFollowing})> getFollowStats(
-      String targetUserId) async {
-    dev.log('getFollowStats called for targetUserId: $targetUserId',
-        name: _logName);
-    try {
-      final res = await _service
-          .rpc('profile_get_stats', params: {'p_profile_id': targetUserId});
-      final map = res as List<dynamic>;
-      final data = map.first as Map<String, dynamic>;
-      dev.log('getFollowStats success: ${data.toString()}', name: _logName);
-      return (
-        followers: data['followers'] as int? ?? 0,
-        following: data['following'] as int? ?? 0,
-        isFollowing: data['is_following'] as bool? ?? false,
-      );
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in getFollowStats', error: e, name: _logName);
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
+  static ({int followers, int following, bool isFollowing, bool followsYou})
+      _stats(Map<String, dynamic> data) => (
+            followers: asInt(data['followers']) ?? 0,
+            following: asInt(data['following']) ?? 0,
+            isFollowing: data['is_following'] as bool? ?? false,
+            followsYou: data['follows_you'] as bool? ?? false,
+          );
+
+  /// Exposed for the repository, which maps raw stats into [FollowStats].
+  static ({int followers, int following, bool isFollowing, bool followsYou})
+      parseStats(Map<String, dynamic> data) => _stats(data);
 
   @override
-  Future<bool> isFollowing(String targetUserId) async {
-    dev.log('isFollowing called for targetUserId: $targetUserId',
-        name: _logName);
-    try {
-      final res = await _service.rpc('social_is_following',
-          params: {'p_target_user_id': targetUserId});
-      dev.log('isFollowing result: $res', name: _logName);
-      return res as bool? ?? false;
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in isFollowing', error: e, name: _logName);
-      rethrow;
-    }
-  }
+  Future<({int followers, int following, bool isFollowing, bool followsYou})>
+      getFollowStats(String targetUserId) => runRpc(() async {
+            final res = await _service.rpc<dynamic>(FollowRpc.stats,
+                params: {'p_profile_id': targetUserId});
+            return _stats(asRow(res) ?? const {});
+          });
 
   @override
-  Future<void> follow(String targetUserId) async {
-    dev.log('follow called for targetUserId: $targetUserId', name: _logName);
-    try {
-      await _service.rpc('social_toggle_follow',
-          params: {'p_target_user_id': targetUserId});
-      dev.log('follow toggle executed successfully', name: _logName);
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in follow', error: e, name: _logName);
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
+  Future<bool> isFollowing(String targetUserId) async =>
+      (await getFollowStats(targetUserId)).isFollowing;
 
   @override
-  Future<void> unfollow(String targetUserId) async {
-    dev.log('unfollow called for targetUserId: $targetUserId', name: _logName);
-    try {
-      await _service.rpc('social_toggle_follow',
-          params: {'p_target_user_id': targetUserId});
-      dev.log('unfollow toggle executed successfully', name: _logName);
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in unfollow', error: e, name: _logName);
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
+  Future<void> follow(String targetUserId) => setFollowing(targetUserId, true);
+
+  @override
+  Future<void> unfollow(String targetUserId) =>
+      setFollowing(targetUserId, false);
+
+  @override
+  Future<Map<String, dynamic>> setFollowing(String targetUserId, bool follow) =>
+      runRpc(() async {
+        dev.log('setFollowing $targetUserId -> $follow', name: _logName);
+        final res = await _service.rpc<dynamic>(FollowRpc.set, params: {
+          'p_target_user_id': targetUserId,
+          'p_follow': follow,
+        });
+        return asRow(res) ?? const {};
+      });
+
+  @override
+  Future<Map<String, dynamic>> toggleFollowing(String targetUserId) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(FollowRpc.toggle,
+            params: {'p_target_user_id': targetUserId});
+        return asRow(res) ?? const {};
+      });
+
+  @override
+  Future<List<Map<String, dynamic>>> followList(String profileId,
+          {required String kind, int limit = 50, int offset = 0}) =>
+      runRpc(() async => asRows(await _service.rpc<dynamic>(FollowRpc.list,
+              params: {
+                'p_profile_id': profileId,
+                'p_kind': kind,
+                'p_limit': limit,
+                'p_offset': offset,
+              })));
 
   @override
   Future<List<String>> getFollowedUserIds() async {

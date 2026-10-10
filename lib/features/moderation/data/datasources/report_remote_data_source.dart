@@ -28,6 +28,7 @@ abstract interface class ReportRemoteDataSource {
   Future<void> restorePost(int postId, String? reason);
   Future<void> setPostVisibility(int postId, String status, String? reason);
   Future<void> removeMessage(int messageId, String reason);
+  Future<void> removeComment(int commentId, String reason);
   Future<int> warnUser(String userId, String reason, int? reportId);
   Stream<void> watchReports();
 }
@@ -125,6 +126,12 @@ class ReportRemoteDataSourceImpl implements ReportRemoteDataSource {
   Future<void> removeMessage(int messageId, String reason) => runRpc(() async {
         await _service.rpc<dynamic>(ReportRpc.removeMessage,
             params: {'p_message_id': messageId, 'p_reason': reason});
+      });
+
+  @override
+  Future<void> removeComment(int commentId, String reason) => runRpc(() async {
+        await _service.rpc<dynamic>(ReportRpc.removeComment,
+            params: {'p_comment_id': commentId, 'p_reason': reason});
       });
 
   @override

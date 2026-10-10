@@ -61,6 +61,10 @@ class RpcErrorMessages {
     'sanction_not_found': 'That sanction no longer exists.',
     'not_a_member': 'You are not part of this conversation.',
     'recipient_unavailable': 'This person is no longer available.',
+    'comment_not_found': 'That comment no longer exists.',
+    'comment_removed_by_moderation': 'This comment was removed by moderators.',
+    'cannot_follow_self': 'You cannot follow yourself.',
+    'invalid_kind': 'Unknown list.',
     // throttling
     'rate_limited': 'Slow down a little and try again.',
   };

@@ -18,10 +18,15 @@ import '../../features/admin/presentation/pages/admin_user_detail_page.dart';
 import '../../features/admin/presentation/pages/admin_users_page.dart';
 import '../../features/admin/presentation/pages/audit_log_page.dart';
 import '../../features/admin/presentation/pages/osint_applications_page.dart';
+import '../../features/auth/presentation/cubits/change_password_cubit.dart';
+import '../../features/auth/presentation/pages/change_password_page.dart';
+
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
 import '../../features/auth/presentation/providers/auth_cubit.dart';
+import '../../features/comments/presentation/cubits/post_detail_cubit.dart';
+import '../../features/comments/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/media/presentation/pages/reels_page.dart';
 import '../../features/messaging/presentation/cubits/chat_cubit.dart';
@@ -38,7 +43,10 @@ import '../../features/moderation/presentation/pages/feedback_page.dart';
 import '../../features/moderation/presentation/pages/mod_queue_page.dart';
 import '../../features/moderation/presentation/pages/my_reports_page.dart';
 import '../../features/moderation/presentation/pages/report_detail_page.dart';
+import '../../features/profile/domain/entities/profile.dart';
+import '../../features/profile/presentation/cubits/follow_list_cubit.dart';
 import '../../features/profile/presentation/pages/apply_osint_page.dart';
+import '../../features/profile/presentation/pages/follow_list_page.dart';
 import '../../features/profile/presentation/pages/channel_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/settings_page.dart';
@@ -249,6 +257,14 @@ class AppRouter {
           builder: (context, state) => const SettingsPage(),
           routes: [
             GoRoute(
+              path: 'change-password',
+              name: RouteNames.changePassword,
+              builder: (context, state) => BlocProvider<ChangePasswordCubit>(
+                create: (_) => sl<ChangePasswordCubit>(),
+                child: const ChangePasswordPage(),
+              ),
+            ),
+            GoRoute(
               path: 'delete-account',
               name: RouteNames.deleteAccount,
               builder: (context, state) => BlocProvider<DeleteAccountCubit>(
@@ -289,6 +305,40 @@ class AppRouter {
               key: ValueKey('channel-$username'),
               create: (_) => sl<ChannelCubit>()..load(username),
               child: ChannelPage(username: username),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.post,
+          name: RouteNames.post,
+          parentNavigatorKey: _rootKey,
+          builder: (context, state) {
+            final postId = int.tryParse(state.pathParameters['postId'] ?? '');
+            if (postId == null) return const NotFoundPage();
+            final extra = state.extra;
+            return BlocProvider<PostDetailCubit>(
+              key: ValueKey('post-$postId'),
+              create: (_) => sl<PostDetailCubit>(param1: postId)..load(),
+              child: PostDetailPage(
+                args: extra is PostDetailArgs ? extra : const PostDetailArgs(),
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.followList,
+          name: RouteNames.followList,
+          parentNavigatorKey: _rootKey,
+          builder: (context, state) {
+            final userId = state.pathParameters['userId']!;
+            final kind = FollowListKind.fromValue(state.pathParameters['kind']);
+            final extra = state.extra;
+            return BlocProvider<FollowListCubit>(
+              key: ValueKey('follows-$userId-${kind.value}'),
+              create: (_) => sl<FollowListCubit>(
+                param1: FollowListArgs(profileId: userId, kind: kind),
+              )..load(),
+              child: FollowListPage(title: extra is String ? extra : null),
             );
           },
         ),
@@ -400,7 +450,9 @@ class AppRouter {
 
     // The session exists but only to set a new password.
     if (auth.isRecovering) {
-      return location == AppRoutes.resetPassword ? null : AppRoutes.resetPassword;
+      return location == AppRoutes.resetPassword
+          ? null
+          : AppRoutes.resetPassword;
     }
 
     if (!auth.isAuthenticated) {
