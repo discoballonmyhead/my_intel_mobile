@@ -67,6 +67,7 @@ class _LivePageState extends State<LivePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('LIVE')),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-live-go-live',
         onPressed: _createStream,
         icon: const Icon(Icons.videocam_outlined),
         label: const Text('GO LIVE'),

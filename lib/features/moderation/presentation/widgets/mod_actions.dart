@@ -27,4 +27,23 @@ class ModActions {
         context, result.failureOrNull?.message ?? 'Post removed.');
     return result.isOk;
   }
+
+  /// Asks for a reason, removes the comment, returns true on success.
+  static Future<bool> removeComment(BuildContext context, int commentId) async {
+    final reason = await AppDialogs.reason(
+      context,
+      title: 'Remove comment',
+      hint: 'Reason (logged, shown to the author)',
+      confirmLabel: 'REMOVE',
+      destructive: true,
+    );
+    if (reason == null) return false;
+
+    final result = await sl<ModRemoveComment>()(
+        ModContentParams(id: commentId, reason: reason));
+    if (!context.mounted) return result.isOk;
+    AppDialogs.snack(
+        context, result.failureOrNull?.message ?? 'Comment removed.');
+    return result.isOk;
+  }
 }

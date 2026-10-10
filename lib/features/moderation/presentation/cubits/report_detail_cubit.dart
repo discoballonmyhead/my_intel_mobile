@@ -81,6 +81,7 @@ class ReportDetailCubit extends Cubit<ReportDetailState> {
     required ModRemovePost removePost,
     required ModRestorePost restorePost,
     required ModRemoveMessage removeMessage,
+    required ModRemoveComment removeComment,
     required WarnUser warnUser,
     required BanUser banUser,
   })  : _getReports = getReports,
@@ -89,6 +90,7 @@ class ReportDetailCubit extends Cubit<ReportDetailState> {
         _removePost = removePost,
         _restorePost = restorePost,
         _removeMessage = removeMessage,
+        _removeComment = removeComment,
         _warnUser = warnUser,
         _banUser = banUser,
         super(ReportDetailState(target: target));
@@ -99,6 +101,7 @@ class ReportDetailCubit extends Cubit<ReportDetailState> {
   final ModRemovePost _removePost;
   final ModRestorePost _restorePost;
   final ModRemoveMessage _removeMessage;
+  final ModRemoveComment _removeComment;
   final WarnUser _warnUser;
   final BanUser _banUser;
 
@@ -136,6 +139,11 @@ class ReportDetailCubit extends Cubit<ReportDetailState> {
       ReportTargetType.post when id != null => _run(
           () => _removePost(ModContentParams(id: id, reason: reason)),
           'Post removed.',
+          resolves: true,
+        ),
+      ReportTargetType.comment when id != null => _run(
+          () => _removeComment(ModContentParams(id: id, reason: reason)),
+          'Comment removed.',
           resolves: true,
         ),
       ReportTargetType.message when id != null => _run(
