@@ -7,6 +7,9 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/post.dart';
+import 'photo_viewer.dart';
+import 'post_attachments.dart';
+import 'post_poll_view.dart';
 
 /// One post in the feed, "clean & airy": round avatar, bold name with role
 /// icon and time on the right, plain text, rounded photo, a soft

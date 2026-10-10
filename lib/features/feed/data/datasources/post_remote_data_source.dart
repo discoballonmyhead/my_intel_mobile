@@ -28,6 +28,15 @@ abstract interface class PostRemoteDataSource {
   Future<List<int>> savedPostIdsOrdered();
 
   Future<Map<String, dynamic>> insertPost(Map<String, dynamic> payload);
+
+  /// Attachments per post id, for the posts that have any.
+  Future<Map<int, List<Map<String, dynamic>>>> fetchAttachments(List<int> ids);
+
+  /// Poll per post id, for the posts that have one.
+  Future<Map<int, Map<String, dynamic>>> fetchPolls(List<int> ids);
+
+  /// Casts the viewer's (final) vote; returns the poll with its new counts.
+  Future<Map<String, dynamic>> votePoll(int postId, int optionId);
   Future<void> like(int postId);
   Future<void> unlike(int postId);
   Future<void> save(int postId);
@@ -140,19 +149,47 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> insertPost(Map<String, dynamic> payload) async {
-    try {
-      final res = await _service
-          .rpc('social_create_post', params: {'p_payload': payload});
-      return res as Map<String, dynamic>;
-    } on PostgrestException catch (e) {
-      if (e.code == '42501') {
-        throw const ex.PermissionException(
-            'You do not have permission to publish that.');
-      }
-      throw ex.ServerException(e.message, code: e.code);
-    }
+  Future<Map<String, dynamic>> insertPost(Map<String, dynamic> payload) =>
+      runRpc(() async {
+        final res = await _service
+            .rpc<dynamic>(PostRpc.create, params: {'p_payload': payload});
+        final row = asRow(res);
+        if (row == null) throw const ex.ServerException('Post was not created.');
+        return row;
+      });
+
+  @override
+  Future<Map<int, List<Map<String, dynamic>>>> fetchAttachments(
+      List<int> ids) async {
+    if (ids.isEmpty) return const {};
+    final res = await runRpc(() => _service.rpc<dynamic>(
+        PostRpc.attachmentsForPosts,
+        params: {'p_post_ids': ids}));
+    return {
+      for (final row in asRows(res))
+        (row['post_id'] as num).toInt(): asRows(row['attachments']),
+    };
   }
+
+  @override
+  Future<Map<int, Map<String, dynamic>>> fetchPolls(List<int> ids) async {
+    if (ids.isEmpty) return const {};
+    final res = await runRpc(() => _service
+        .rpc<dynamic>(PostRpc.pollsForPosts, params: {'p_post_ids': ids}));
+    return {
+      for (final row in asRows(res)) (row['post_id'] as num).toInt(): row,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> votePoll(int postId, int optionId) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(PostRpc.pollVote,
+            params: {'p_post_id': postId, 'p_option_id': optionId});
+        final row = asRow(res);
+        if (row == null) throw const ex.NotFoundException('Poll not found.');
+        return row;
+      });
 
   @override
   Future<void> like(int postId) async {

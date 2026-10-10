@@ -1,6 +1,7 @@
 import '../../../../core/utils/date_x.dart';
 import '../../../profile/domain/entities/profile.dart';
 import '../../domain/entities/post.dart';
+import 'post_extras_model.dart';
 
 class PostModel extends Post {
   const PostModel({
@@ -27,6 +28,8 @@ class PostModel extends Post {
     super.editCount,
     super.moderationStatus,
     super.deletedAt,
+    super.attachments,
+    super.poll,
   });
 
   factory PostModel.fromJson(
@@ -35,7 +38,11 @@ class PostModel extends Post {
     bool liked = false,
     bool saved = false,
     bool reposted = false,
+    List<PostAttachment>? attachments,
+    PostPoll? poll,
   }) {
+    // `social_create_post` returns the new post with its attachments and poll
+    // inline; feed rows get them passed in from the batch lookups.
     return PostModel(
       id: (json['id'] as num).toInt(),
       body: (json['body'] as String?) ?? '',
@@ -60,6 +67,9 @@ class PostModel extends Post {
       editCount: (json['edit_count'] as num?)?.toInt() ?? 0,
       moderationStatus: (json['moderation_status'] as String?) ?? 'visible',
       deletedAt: parseTimestamp(json['deleted_at']),
+      attachments:
+          attachments ?? PostExtrasModel.attachmentsFromJson(json['attachments']),
+      poll: poll ?? PostExtrasModel.pollFromJson(json['poll']),
     );
   }
 
