@@ -1,5 +1,6 @@
 import '../../../../core/utils/result.dart';
 import '../entities/story.dart';
+import '../entities/story_publication.dart';
 
 abstract interface class StoryRepository {
   /// Stories with their sources and each source's author attached.
@@ -16,19 +17,35 @@ abstract interface class StoryRepository {
   /// Stories an analyst has contributed at least one source to.
   Future<Result<List<Story>>> getStoriesByContributor(String userId);
 
-  /// Publishes an analyst post. The `trg_auto_link_post_to_stories` trigger
-  /// then either attaches it to an existing story or opens a new one, so the
-  /// repository polls briefly for the resulting link.
-  Future<Result<Story?>> publishIntel({
+  /// Publishes an OSINT news post via `story_publish` (shared with the web):
+  /// the post keeps `post_type = 'news'`, [threadId] attaches it to that
+  /// story, otherwise the clustering trigger links it; duplicate links are
+  /// cleaned up and a new story gets keyword metadata straight away.
+  Future<Result<StoryPublication>> publishPost({
     required String body,
     required String tag,
-    required String region,
+    String? region,
     double? regionLat,
     double? regionLng,
-    int? attachToStoryId,
+    int? threadId,
     String? headline,
     String? summary,
   });
+
+  /// Updates a story's text / place. Null arguments are left unchanged.
+  /// Allowed for contributors of the story and staff.
+  Future<Result<void>> setStoryMeta(
+    int storyId, {
+    String? headline,
+    String? summary,
+    String? tag,
+    String? region,
+    double? regionLat,
+    double? regionLng,
+  });
+
+  /// Headline + every source post (oldest first) for an AI summary refresh.
+  Future<Result<StoryContext>> getStoryContext(int storyId);
 
   /// Region roll-up used by the map: name, coordinates, story count.
   Future<Result<List<RegionActivity>>> getRegionActivity();

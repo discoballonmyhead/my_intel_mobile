@@ -18,9 +18,6 @@ import '../../features/admin/presentation/pages/admin_user_detail_page.dart';
 import '../../features/admin/presentation/pages/admin_users_page.dart';
 import '../../features/admin/presentation/pages/audit_log_page.dart';
 import '../../features/admin/presentation/pages/osint_applications_page.dart';
-import '../../features/auth/presentation/cubits/change_password_cubit.dart';
-import '../../features/auth/presentation/pages/change_password_page.dart';
-
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
@@ -48,10 +45,9 @@ import '../../features/moderation/presentation/pages/report_detail_page.dart';
 import '../../features/profile/domain/entities/profile.dart';
 import '../../features/profile/presentation/cubits/follow_list_cubit.dart';
 import '../../features/profile/presentation/pages/apply_osint_page.dart';
-import '../../features/profile/presentation/pages/follow_list_page.dart';
 import '../../features/profile/presentation/pages/channel_page.dart';
-import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/follow_list_page.dart';
+import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/settings_page.dart';
 import '../../features/profile/presentation/pages/settings_sub_pages.dart';
 import '../../features/profile/presentation/providers/profile_cubit.dart';
@@ -261,14 +257,6 @@ class AppRouter {
           builder: (context, state) => const SettingsPage(),
           routes: [
             GoRoute(
-              path: 'change-password',
-              name: RouteNames.changePassword,
-              builder: (context, state) => BlocProvider<ChangePasswordCubit>(
-                create: (_) => sl<ChangePasswordCubit>(),
-                child: const ChangePasswordPage(),
-              ),
-            ),
-            GoRoute(
               path: 'delete-account',
               name: RouteNames.deleteAccount,
               builder: (context, state) => BlocProvider<DeleteAccountCubit>(
@@ -305,17 +293,21 @@ class AppRouter {
             ),
           ],
         ),
+        // Your own lists (from the Profile header) use the same page and
+        // cubit as anyone else's, keyed to the signed-in user.
         GoRoute(
           path: AppRoutes.followers,
           name: RouteNames.followers,
           parentNavigatorKey: _rootKey,
-          builder: (context, state) => const FollowListPage(),
+          builder: (context, state) =>
+              _ownFollowList(authCubit, FollowListKind.followers),
         ),
         GoRoute(
           path: AppRoutes.following,
           name: RouteNames.following,
           parentNavigatorKey: _rootKey,
-          builder: (context, state) => const FollowListPage(showFollowing: true),
+          builder: (context, state) =>
+              _ownFollowList(authCubit, FollowListKind.following),
         ),
         GoRoute(
           path: AppRoutes.feedback,
@@ -479,6 +471,18 @@ class AppRouter {
           ],
         ),
       ],
+    );
+  }
+
+  static Widget _ownFollowList(AuthCubit auth, FollowListKind kind) {
+    final userId = auth.state.user?.id;
+    if (userId == null) return const NotFoundPage();
+    return BlocProvider<FollowListCubit>(
+      key: ValueKey('my-follows-${kind.value}'),
+      create: (_) => sl<FollowListCubit>(
+        param1: FollowListArgs(profileId: userId, kind: kind),
+      )..load(),
+      child: const FollowListPage(),
     );
   }
 

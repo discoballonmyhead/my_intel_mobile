@@ -55,13 +55,13 @@ import '../network/supabase_service.dart';
 import '../responsive/responsive_provider.dart';
 import '../theme/theme_provider.dart';
 import 'modules/account_module.dart';
-import 'modules/auth_extras_module.dart';
 import 'modules/comments_module.dart';
 import 'modules/social_module.dart';
 import 'modules/admin_module.dart';
 import 'modules/messaging_module.dart';
 import 'modules/posts_module.dart';
 import 'modules/reports_module.dart';
+import 'modules/web_parity_module.dart';
 
 final sl = GetIt.instance; // sl stands for Service Locator
 
@@ -104,7 +104,7 @@ class Injection {
     sl.registerLazySingleton<PostRepository>(
         () => PostRepositoryImpl(sl(), sl(), sl()));
     sl.registerLazySingleton<StoryRepository>(
-        () => StoryRepositoryImpl(sl(), sl(), sl(), sl()));
+        () => StoryRepositoryImpl(sl(), sl()));
     sl.registerLazySingleton<MediaRepository>(
         () => MediaRepositoryImpl(sl(), sl(), sl()));
     sl.registerLazySingleton<ModerationRepository>(
@@ -132,7 +132,6 @@ class Injection {
     sl.registerLazySingleton(() => UpdateProfile(sl()));
     sl.registerLazySingleton(() => ToggleFollow(sl()));
     sl.registerLazySingleton(() => GetFollowStats(sl()));
-    sl.registerLazySingleton(() => GetFollowList(sl()));
     sl.registerLazySingleton(() => GetFollowedUserIds(sl()));
     sl.registerLazySingleton(() => ApplyForOsint(sl()));
     sl.registerLazySingleton(() => GetMyApplication(sl()));
@@ -154,7 +153,7 @@ class Injection {
     sl.registerLazySingleton(() => SearchStories(sl()));
     sl.registerLazySingleton(() => GetRegionActivity(sl()));
     sl.registerLazySingleton(() => GetTrendingStories(sl(), sl()));
-    sl.registerLazySingleton(() => PublishIntel(sl()));
+    sl.registerLazySingleton(() => PublishIntel(sl(), sl()));
     // Media
     sl.registerLazySingleton(() => GetVideos(sl()));
     sl.registerLazySingleton(() => ToggleVideoLike(sl()));
@@ -189,6 +188,7 @@ class Injection {
           getFollowStats: sl(),
           getPostsByAuthor: sl(),
           getSavedPosts: sl(),
+          getCredibility: sl(),
           toggleLike: sl(),
           toggleSave: sl(),
           toggleRepost: sl(),
@@ -241,10 +241,10 @@ class Injection {
           getFollowStats: sl(),
           getPostsByAuthor: sl(),
           setFollowing: sl(),
+          getCredibility: sl(),
         ));
 
     // ── New feature modules ──
-    registerAuthExtrasModule(sl);
     registerSocialModule(sl);
     registerCommentsModule(sl);
     registerAccountModule(sl);
@@ -252,5 +252,6 @@ class Injection {
     registerMessagingModule(sl);
     registerReportsModule(sl);
     registerAdminModule(sl);
+    registerWebParityModule(sl);
   }
 }

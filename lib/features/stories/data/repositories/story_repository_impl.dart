@@ -1,28 +1,21 @@
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/error/failure_mapper.dart';
-import '../../../../core/network/supabase_service.dart';
 import '../../../../core/theme/app_colors.dart' show AppColors;
 import '../../../../core/utils/result.dart';
-import '../../../feed/data/datasources/post_remote_data_source.dart';
-import '../../../feed/data/models/post_model.dart';
 import '../../../profile/data/datasources/profile_remote_data_source.dart';
 import '../../../profile/domain/entities/profile.dart';
 import '../../domain/entities/story.dart';
+import '../../domain/entities/story_publication.dart';
 import '../../domain/repositories/story_repository.dart';
 import '../datasources/story_remote_data_source.dart';
 import '../models/story_model.dart';
+import '../models/story_publication_model.dart';
 
 class StoryRepositoryImpl implements StoryRepository {
-  StoryRepositoryImpl(this._remote, this._posts, this._profiles, this._service);
+  StoryRepositoryImpl(this._remote, this._profiles);
 
   final StoryRemoteDataSource _remote;
-  final PostRemoteDataSource _posts;
   final ProfileRemoteDataSource _profiles;
-  final SupabaseService _service;
-
-  /// How long to wait for `trg_auto_link_post_to_stories` to link a new post.
-  static const Duration _pollInterval = Duration(milliseconds: 400);
-  static const int _pollAttempts = 5;
 
   @override
   Future<Result<List<Story>>> getStories({int limit = 50}) {
@@ -75,66 +68,54 @@ class StoryRepositoryImpl implements StoryRepository {
   }
 
   @override
-  Future<Result<Story?>> publishIntel({
+  Future<Result<StoryPublication>> publishPost({
     required String body,
     required String tag,
-    required String region,
+    String? region,
     double? regionLat,
     double? regionLng,
-    int? attachToStoryId,
+    int? threadId,
     String? headline,
     String? summary,
   }) {
     return guard(() async {
-      final userId = _requireAnalystId();
-
-      // `manual_story_id` tells the trigger to skip auto-clustering and attach
-      // straight to the chosen story.
-      final row = await _posts.insertPost(PostModel.toInsertJson(
-        authorId: userId,
-        body: body.trim(),
+      final row = await _remote.publish(
+        body: body,
         tag: tag,
         region: region,
-        isOsint: true,
-        postType: 'news',
         regionLat: regionLat,
         regionLng: regionLng,
-        manualStoryId: attachToStoryId,
-      ));
-      final postId = (row['id'] as num).toInt();
-
-      if (attachToStoryId != null) {
-        return (await getStory(attachToStoryId)).valueOrNull;
-      }
-
-      // Auto-cluster path: wait for the trigger to write story_sources.
-      final storyIds = await _awaitStoryLink(postId);
-      if (storyIds.isEmpty) return null;
-
-      // If the trigger linked to more than one story, keep the last and drop
-      // the rest, matching the web client's clean-up.
-      if (storyIds.length > 1) {
-        await _remote.unlinkStorySources(
-          postId,
-          storyIds.sublist(0, storyIds.length - 1),
-        );
-      }
-      final storyId = storyIds.last;
-
-      final resolvedHeadline =
-          headline ?? await _fallbackHeadline(body);
-      await _remote.updateStory(storyId, {
-        'headline': resolvedHeadline,
-        'summary': summary ?? body.trim(),
-        'tag': tag,
-        'region': region,
-        'region_lat': regionLat,
-        'region_lng': regionLng,
-      });
-
-      return (await getStory(storyId)).valueOrNull;
+        threadId: threadId,
+        headline: headline,
+        summary: summary,
+      );
+      return StoryPublicationModel.fromJson(row);
     });
   }
+
+  @override
+  Future<Result<void>> setStoryMeta(
+    int storyId, {
+    String? headline,
+    String? summary,
+    String? tag,
+    String? region,
+    double? regionLat,
+    double? regionLng,
+  }) =>
+      guard(() => _remote.setMeta(
+            storyId,
+            headline: headline,
+            summary: summary,
+            tag: tag,
+            region: region,
+            regionLat: regionLat,
+            regionLng: regionLng,
+          ));
+
+  @override
+  Future<Result<StoryContext>> getStoryContext(int storyId) => guard(
+      () async => StoryContextModel.fromJson(await _remote.fetchContext(storyId)));
 
   @override
   Future<Result<List<RegionActivity>>> getRegionActivity() {
@@ -172,42 +153,6 @@ class StoryRepositoryImpl implements StoryRepository {
           .toList()
         ..sort((a, b) => b.count.compareTo(a.count));
     });
-  }
-
-  Future<List<int>> _awaitStoryLink(int postId) async {
-    for (var attempt = 0; attempt < _pollAttempts; attempt++) {
-      await Future<void>.delayed(_pollInterval);
-      final ids = await _remote.storyIdsForPost(postId);
-      if (ids.isNotEmpty) return ids;
-    }
-    return const [];
-  }
-
-  /// Builds a headline from the database's own keyword extractor when no AI
-  /// headline was supplied.
-  Future<String> _fallbackHeadline(String body) async {
-    final keywords = await _remote.extractKeywords(body);
-    if (keywords.isEmpty) return _truncate(body.trim());
-
-    final candidate = keywords
-        .take(8)
-        .map((k) => k.isEmpty ? k : '${k[0].toUpperCase()}${k.substring(1)}')
-        .join(' ');
-
-    return _truncate(candidate.length > 10 ? candidate : body.trim());
-  }
-
-  String _truncate(String value) =>
-      value.length > 100 ? '${value.substring(0, 97)}...' : value;
-
-  /// RLS already restricts `content.stories` inserts to osint/admin; this only
-  /// produces a clearer message than a bare 42501 when nobody is signed in.
-  String _requireAnalystId() {
-    final id = _service.currentUserId;
-    if (id == null) {
-      throw const ex.AuthException('Sign in as an analyst to publish.');
-    }
-    return id;
   }
 
   Future<Map<String, Profile>> _resolveAuthors(

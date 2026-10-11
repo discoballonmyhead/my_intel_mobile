@@ -57,16 +57,6 @@ class AuthRepositoryImpl implements AuthRepository {
       _guard(() => _remote.updatePassword(newPassword));
 
   @override
-  Future<Result<void>> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) =>
-      _guard(() => _remote.changePassword(
-            currentPassword: currentPassword,
-            newPassword: newPassword,
-          ));
-
-  @override
   Future<Result<void>> resendVerification(String email) =>
       _guard(() => _remote.resendVerification(email));
 

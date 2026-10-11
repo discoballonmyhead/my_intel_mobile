@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mint/core/error/failures.dart';
 import 'package:mint/core/usecases/usecase.dart';
 import 'package:mint/core/utils/result.dart';
+import 'package:mint/features/credibility/domain/entities/credibility_report.dart';
+import 'package:mint/features/credibility/domain/usecases/get_credibility.dart';
 import 'package:mint/features/feed/domain/entities/post.dart';
 import 'package:mint/features/feed/domain/post_updates.dart';
 import 'package:mint/features/feed/domain/usecases/get_feed.dart';
@@ -23,6 +25,7 @@ class ProfileState extends Equatable {
     this.posts = const [],
     this.savedPosts = const [],
     this.reposts = const [],
+    this.credibility,
     this.isLoading = false,
     this.isSubmitting = false,
     this.failure,
@@ -35,6 +38,9 @@ class ProfileState extends Equatable {
   final List<Post> posts;
   final List<Post> savedPosts;
   final List<RepostedPost> reposts;
+
+  /// Analysts only: the score and how it was reached (`credibility_get`).
+  final CredibilityReport? credibility;
   final bool isLoading;
   final bool isSubmitting;
   final Failure? failure;
@@ -56,6 +62,8 @@ class ProfileState extends Equatable {
     List<Post>? posts,
     List<Post>? savedPosts,
     List<RepostedPost>? reposts,
+    CredibilityReport? credibility,
+    bool clearCredibility = false,
     bool? isLoading,
     bool? isSubmitting,
     Failure? failure,
@@ -69,6 +77,8 @@ class ProfileState extends Equatable {
       posts: posts ?? this.posts,
       savedPosts: savedPosts ?? this.savedPosts,
       reposts: reposts ?? this.reposts,
+      credibility:
+          clearCredibility ? null : credibility ?? this.credibility,
       isLoading: isLoading ?? this.isLoading,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       failure: clearFailure ? null : failure ?? this.failure,
@@ -84,6 +94,7 @@ class ProfileState extends Equatable {
         posts,
         savedPosts,
         reposts,
+        credibility,
         isLoading,
         isSubmitting,
         failure,
@@ -101,6 +112,7 @@ class ProfileCubit extends Cubit<ProfileState> {
     required GetFollowStats getFollowStats,
     required GetPostsByAuthor getPostsByAuthor,
     required GetSavedPosts getSavedPosts,
+    GetCredibility? getCredibility,
     ToggleLike? toggleLike,
     ToggleSave? toggleSave,
     ToggleRepost? toggleRepost,
@@ -118,6 +130,7 @@ class ProfileCubit extends Cubit<ProfileState> {
         _getFollowStats = getFollowStats,
         _getPostsByAuthor = getPostsByAuthor,
         _getSavedPosts = getSavedPosts,
+        _getCredibility = getCredibility,
         super(const ProfileState()) {
     _updatesSub = postUpdates?.stream.listen(_onPostUpdated);
     // 2. Trigger the initial load immediately on creation
@@ -131,6 +144,7 @@ class ProfileCubit extends Cubit<ProfileState> {
   final GetFollowStats _getFollowStats;
   final GetPostsByAuthor _getPostsByAuthor;
   final GetSavedPosts _getSavedPosts;
+  final GetCredibility? _getCredibility;
   final ToggleLike? _toggleLike;
   final ToggleSave? _toggleSave;
   final ToggleRepost? _toggleRepost;
@@ -163,18 +177,22 @@ class ProfileCubit extends Cubit<ProfileState> {
 
     // Secondary sections: a failure here leaves that section empty rather
     // than failing the whole page.
-    final (stats, posts, saved, application, reposts) = await (
+    final (stats, posts, saved, application, reposts, report) = await (
       _getFollowStats(userId),
       _getPostsByAuthor(userId),
       _getSavedPosts(const NoParams()),
       _getMyApplication(const NoParams()),
       _loadReposts(userId),
+      _loadCredibility(profile),
     ).wait;
     if (isClosed || state.loadedForUserId != userId) return;
 
     emit(state.copyWith(
       isLoading: false,
-      profile: profile,
+      // The live score (same model as the web) wins over the stored one.
+      profile: report == null ? profile : profile.copyWith(score: report.score),
+      credibility: report,
+      clearCredibility: report == null,
       stats: stats.valueOrNull ?? const FollowStats(),
       posts: posts.valueOrNull ?? const [],
       savedPosts: saved.valueOrNull ?? const [],
@@ -288,6 +306,13 @@ class ProfileCubit extends Cubit<ProfileState> {
       _postUpdates?.publish(updated);
       if (updated.reposted != original.reposted) await _refreshReposts();
     }
+  }
+
+  /// Only analysts have a credibility score; a failure just hides it.
+  Future<CredibilityReport?> _loadCredibility(Profile profile) async {
+    final get = _getCredibility;
+    if (get == null || !profile.isAnalyst) return null;
+    return (await get(profile.id)).valueOrNull;
   }
 
   Future<List<RepostedPost>> _loadReposts(String userId) async =>

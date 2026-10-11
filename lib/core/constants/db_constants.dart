@@ -167,3 +167,26 @@ class CommentRpc {
   static const String forPost = 'comment_get_for_post';
   static const String replies = 'comment_get_replies';
 }
+
+/// Post reactions — one per user per post (migration 12).
+class ReactionRpc {
+  const ReactionRpc._();
+  static const String forPost = 'reaction_get_for_post';
+  static const String forPosts = 'reaction_get_for_posts';
+  static const String toggle = 'reaction_toggle';
+}
+
+/// Analyst credibility, same model as the web `useCredibility` (migration 12).
+class CredibilityRpc {
+  const CredibilityRpc._();
+  static const String get = 'credibility_get';
+  static const String recalculateAll = 'credibility_recalculate_all';
+}
+
+/// Story publishing shared with the web composer (migration 12).
+class StoryRpc {
+  const StoryRpc._();
+  static const String publish = 'story_publish';
+  static const String setMeta = 'story_set_meta';
+  static const String context = 'story_get_context';
+}

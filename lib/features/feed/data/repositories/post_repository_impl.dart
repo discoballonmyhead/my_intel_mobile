@@ -117,10 +117,11 @@ class PostRepositoryImpl implements PostRepository {
         }
       }
 
-      final (liked, saved, reposted) = await (
+      final (liked, saved, reposted, extras) = await (
         flags(_remote.likedPostIds),
         flags(_remote.savedPostIds),
         flags(_remote.repostedPostIds),
+        _extrasFor([row]),
       ).wait;
       return PostModel.fromJson(
         row,
@@ -143,13 +144,16 @@ class PostRepositoryImpl implements PostRepository {
           .toList();
       final profiles = await _profiles.profilesByIds([authorId]);
       final (liked, saved, reposted) = await _viewerMarks();
+      final extras = await _extrasFor(rows);
       return rows.map((row) {
         final id = (row['id'] as num).toInt();
         return PostModel.fromJson(row,
             author: profiles[authorId],
             liked: liked.contains(id),
             saved: saved.contains(id),
-            reposted: reposted.contains(id));
+            reposted: reposted.contains(id),
+            attachments: extras.attachments[id] ?? const [],
+            poll: extras.polls[id]);
       }).toList();
     });
   }
@@ -177,6 +181,7 @@ class PostRepositoryImpl implements PostRepository {
         ...rows.map((r) => r['author_id'] as String?),
       ]);
       final (liked, saved, reposted) = await _viewerMarks();
+      final extras = await _extrasFor(rows);
       return [
         for (final r in reposts)
           // Skip reposts of your own posts: the original is already listed.
@@ -186,7 +191,9 @@ class PostRepositoryImpl implements PostRepository {
                   author: profiles[row['author_id']],
                   liked: liked.contains(r.postId),
                   saved: saved.contains(r.postId),
-                  reposted: reposted.contains(r.postId)),
+                  reposted: reposted.contains(r.postId),
+                  attachments: extras.attachments[r.postId] ?? const [],
+                  poll: extras.polls[r.postId]),
               repostId: r.id,
               repostedAt: r.createdAt,
               reposter: profiles[userId],
@@ -206,6 +213,8 @@ class PostRepositoryImpl implements PostRepository {
       final byId = {for (final r in rows) (r['id'] as num).toInt(): r};
       final profiles = await _profiles
           .profilesByIds(rows.map((r) => r['author_id'] as String?));
+      final (liked, _, reposted) = await _viewerMarks();
+      final extras = await _extrasFor(rows);
       // Preserve the saved-at ordering rather than the id ordering.
       return ids
           .map((id) => byId[id])
@@ -218,6 +227,8 @@ class PostRepositoryImpl implements PostRepository {
               liked: liked.contains(id),
               saved: true,
               reposted: reposted.contains(id),
+              attachments: extras.attachments[id] ?? const [],
+              poll: extras.polls[id],
             );
           })
           .toList();

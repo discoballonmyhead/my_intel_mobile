@@ -7,6 +7,7 @@ import 'package:mint/features/feed/presentation/providers/feed_provider.dart';
 import 'package:mint/features/media/presentation/providers/media_provider.dart';
 import 'package:mint/features/moderation/presentation/providers/moderation_provider.dart';
 import 'package:mint/features/profile/presentation/providers/profile_cubit.dart';
+import 'package:mint/features/reactions/presentation/cubits/reactions_cubit.dart';
 import 'package:mint/features/search/presentation/providers/search_provider.dart';
 import 'package:mint/features/stories/presentation/providers/story_provider.dart';
 import 'package:provider/provider.dart';
@@ -58,6 +59,7 @@ class AppProviders extends StatelessWidget {
           BlocProvider.value(value: sl<ProfileCubit>()),
           BlocProvider.value(value: sl<AccessCubit>()),
           BlocProvider.value(value: sl<InboxCubit>()),
+          BlocProvider.value(value: sl<ReactionsCubit>()),
         ],
         // ── THE PROPER WAY TO SYNC CUBITS IN FLUTTER_BLOC ──
         // Every session-scoped cubit follows the signed-in user id: load on
@@ -86,12 +88,14 @@ class _SessionSyncState extends State<_SessionSync> {
     final userId = context.read<AuthCubit>().state.user?.id;
     context.read<AccessCubit>().syncWithUser(userId);
     context.read<InboxCubit>().syncWithUser(userId);
+    context.read<ReactionsCubit>().syncWithUser(userId);
   }
 
   void _sync(String? userId) {
     context.read<ProfileCubit>().syncWithUser(userId);
     context.read<AccessCubit>().syncWithUser(userId);
     context.read<InboxCubit>().syncWithUser(userId);
+    context.read<ReactionsCubit>().syncWithUser(userId);
     // Session-wide providers holding per-user state (liked / saved flags,
     // staff-only claims, last search) must not leak into the next account.
     sl<FeedProvider>().syncWithUser(userId);

@@ -26,10 +26,8 @@ abstract interface class ProfileRepository {
     int offset = 0,
   });
 
+  /// Ids of everyone the signed-in user follows (the Feed's Following tab).
   Future<Result<List<String>>> getFollowedUserIds();
-
-  Future<Result<List<Profile>>> getFollowList(String userId,
-      {required bool followers});
 
   Future<Result<List<Profile>>> searchProfiles(String query, {int limit = 10});
 

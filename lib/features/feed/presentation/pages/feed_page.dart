@@ -20,6 +20,8 @@ import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../profile/presentation/providers/profile_cubit.dart';
+import '../../../reactions/presentation/cubits/reactions_cubit.dart';
+import '../../../reactions/presentation/widgets/reaction_bar.dart';
 import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../../comments/presentation/pages/post_detail_page.dart';
@@ -111,6 +113,18 @@ class _FeedPageState extends State<FeedPage> {
       if (provider.status == FeedStatus.initial) provider.load();
       provider.listenForNewPosts();
     });
+  }
+
+  /// Pull-to-refresh: the posts, plus fresh reaction counts for the OSINT
+  /// posts on screen.
+  Future<void> _refresh(FeedProvider provider) async {
+    final reactions = context.read<ReactionsCubit>();
+    await provider.refresh();
+    final ids = [
+      for (final i in provider.items)
+        if (i.post.isOsint) i.post.id
+    ];
+    if (ids.isNotEmpty) await reactions.refresh(ids);
   }
 
   Future<void> _openComposer() async {
@@ -267,6 +281,15 @@ class _FeedPageState extends State<FeedPage> {
                     unawaited(context.push(AppRoutes.channelFor(username))),
                 onMore: () => _openActions(item.post),
                 onVote: (optionId) => _votePoll(item.post, optionId),
+                onTap: () =>
+                    unawaited(context.push(AppRoutes.postFor(item.post.id))),
+                onComment: () => unawaited(context.push(
+                    AppRoutes.postFor(item.post.id),
+                    extra: const PostDetailArgs(focusComposer: true))),
+                // Verify / confirm / dispute / breaking, as on the web.
+                footer: item.post.isOsint
+                    ? ReactionBar(postId: item.post.id)
+                    : null,
               );
             },
           ),
@@ -326,7 +349,7 @@ class _FeedPageState extends State<FeedPage> {
                   NotificationListener<ScrollUpdateNotification>(
                     onNotification: _onScroll,
                     child: RefreshIndicator(
-                      onRefresh: provider.refresh,
+                      onRefresh: () => _refresh(provider),
                       child: content,
                     ),
                   ),
@@ -346,31 +369,64 @@ class _FeedPageState extends State<FeedPage> {
                 ],
               ),
             ),
-          FeedStatus.ready => ContentColumn(
-              padded: false,
-              maxWidth: responsive.isExpanded ? 720 : 680,
-              child: ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: AppSpacing.xxxl * 2),
-                itemCount: provider.items.length,
-                itemBuilder: (context, index) {
-                  final item = provider.items[index];
-                  return PostCard(
-                    item: item,
-                    onLike: () => provider.toggleLike(item.post),
-                    onSave: () => provider.toggleSave(item.post),
-                    onRepost: () => provider.toggleRepost(item.post),
-                    onAuthorTap: (username) =>
-                        context.push(AppRoutes.channelFor(username)),
-                    onMore: () => _openActions(item.post),
-                    onTap: () =>
-                        context.push(AppRoutes.postFor(item.post.id)),
-                    onComment: () => context.push(
-                        AppRoutes.postFor(item.post.id),
-                        extra: const PostDetailArgs(focusComposer: true)),
-                  );
-                },
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The logo row and filter chips. Slides away while reading down the feed
+/// and comes back on any upward scroll.
+class _CollapsingHeader extends StatelessWidget {
+  const _CollapsingHeader({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedAlign(
+        alignment: Alignment.bottomCenter,
+        heightFactor: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// All · Following · News, as rounded chips; the selected one is filled.
+class _FilterChips extends StatelessWidget {
+  const _FilterChips({required this.value, required this.onChanged});
+
+  final _FeedFilter value;
+  final ValueChanged<_FeedFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    Widget chip(_FeedFilter filter, String label) {
+      final selected = value == filter;
+      return Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? onSurface : palette.surface2,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: selected ? null : () => onChanged(filter),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
                 label,
                 style: TextStyle(

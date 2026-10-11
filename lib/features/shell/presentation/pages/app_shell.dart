@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../../../../core/responsive/responsive_provider.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_dialogs.dart';
 import '../../../messaging/presentation/cubits/inbox_cubit.dart';
+import '../../../reactions/presentation/cubits/reactions_cubit.dart';
 import '../../../profile/presentation/providers/profile_cubit.dart';
 import '../widgets/nav_destinations.dart';
 
@@ -38,6 +40,19 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // One place to surface a failed reaction (each ReactionBar already rolled
+    // its own count back), so a feed of bars doesn't show N snackbars.
+    return BlocListener<ReactionsCubit, ReactionsState>(
+      listenWhen: (a, b) => b.failure != null && a.failure != b.failure,
+      listener: (context, state) {
+        AppDialogs.snack(context, state.failure!.message);
+        context.read<ReactionsCubit>().clearFailure();
+      },
+      child: Builder(builder: _buildShell),
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     final responsive = context.watch<ResponsiveProvider>();
     final unread =
         context.select<InboxCubit, int>((cubit) => cubit.state.unreadTotal);

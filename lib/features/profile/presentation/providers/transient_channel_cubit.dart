@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mint/core/constants/user_role.dart';
 import 'package:mint/core/error/failures.dart';
+import 'package:mint/features/credibility/domain/entities/credibility_report.dart';
+import 'package:mint/features/credibility/domain/usecases/get_credibility.dart';
 import 'package:mint/features/feed/domain/entities/post.dart';
 import 'package:mint/features/feed/domain/usecases/get_feed.dart';
 import 'package:mint/features/profile/domain/entities/profile.dart';
@@ -12,6 +15,7 @@ class ChannelState extends Equatable {
     this.profile,
     this.stats = const FollowStats(),
     this.posts = const [],
+    this.credibility,
     this.isLoading = true,
     this.failure,
     this.followFailure,
@@ -20,6 +24,9 @@ class ChannelState extends Equatable {
   final Profile? profile;
   final FollowStats stats;
   final List<Post> posts;
+
+  /// Analysts only: score + breakdown, same as the web profile.
+  final CredibilityReport? credibility;
   final bool isLoading;
 
   /// Loading the channel failed (full-screen error).
@@ -32,6 +39,7 @@ class ChannelState extends Equatable {
     Profile? profile,
     FollowStats? stats,
     List<Post>? posts,
+    CredibilityReport? credibility,
     bool? isLoading,
     Failure? failure,
     Failure? followFailure,
@@ -42,6 +50,7 @@ class ChannelState extends Equatable {
       profile: profile ?? this.profile,
       stats: stats ?? this.stats,
       posts: posts ?? this.posts,
+      credibility: credibility ?? this.credibility,
       isLoading: isLoading ?? this.isLoading,
       failure: clearFailure ? null : failure ?? this.failure,
       followFailure:
@@ -51,7 +60,7 @@ class ChannelState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [profile, stats, posts, isLoading, failure, followFailure];
+      [profile, stats, posts, credibility, isLoading, failure, followFailure];
 }
 
 class ChannelCubit extends Cubit<ChannelState> {
@@ -60,16 +69,19 @@ class ChannelCubit extends Cubit<ChannelState> {
     required GetFollowStats getFollowStats,
     required GetPostsByAuthor getPostsByAuthor,
     required SetFollowing setFollowing,
+    required GetCredibility getCredibility,
   })  : _getProfileByUsername = getProfileByUsername,
         _getFollowStats = getFollowStats,
         _getPostsByAuthor = getPostsByAuthor,
         _setFollowing = setFollowing,
+        _getCredibility = getCredibility,
         super(const ChannelState());
 
   final GetProfileByUsername _getProfileByUsername;
   final GetFollowStats _getFollowStats;
   final GetPostsByAuthor _getPostsByAuthor;
   final SetFollowing _setFollowing;
+  final GetCredibility _getCredibility;
 
   /// Bumped on every tap so only the latest response is applied.
   int _followToken = 0;
@@ -89,13 +101,17 @@ class ChannelCubit extends Cubit<ChannelState> {
     final results = await Future.wait([
       _getFollowStats(profile.id),
       _getPostsByAuthor(profile.id),
+      if (profile.role == UserRole.osint) _getCredibility(profile.id),
     ]);
     if (isClosed) return;
 
+    final report =
+        results.length > 2 ? results[2].valueOrNull as CredibilityReport? : null;
     emit(state.copyWith(
-      profile: profile,
+      profile: report == null ? profile : profile.copyWith(score: report.score),
       stats: results[0].valueOrNull as FollowStats? ?? const FollowStats(),
       posts: results[1].valueOrNull as List<Post>? ?? const [],
+      credibility: report,
       isLoading: false,
     ));
   }

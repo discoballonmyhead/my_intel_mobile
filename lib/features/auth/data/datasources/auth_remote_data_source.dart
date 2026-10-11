@@ -24,11 +24,13 @@ abstract interface class AuthRemoteDataSource {
   Future<void> updatePassword(String newPassword);
   Future<void> resendVerification(String email);
 
-  /// Signed-in password change: re-verifies [currentPassword] first.
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  });
+  /// Confirms [password] belongs to the signed-in user by signing in again
+  /// (this also counts as the "recent sign-in" Supabase's secure password
+  /// change asks for).
+  Future<void> verifyPassword(String password);
+
+  /// Emails a confirmation link to [newEmail]; the change applies once tapped.
+  Future<void> changeEmail(String newEmail);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -141,29 +143,25 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
+  Future<void> verifyPassword(String password) async {
     final email = _service.auth.currentUser?.email;
     if (email == null || email.isEmpty) {
-      throw const ex.AuthException('Please sign in again to change your password.');
+      throw const ex.AuthException('Please sign in again.');
     }
-
-    // Re-authenticate. This proves the user knows the current password and
-    // also satisfies Supabase's "Secure password change" (recent sign-in).
     try {
-      await _service.auth.signInWithPassword(
-        email: email,
-        password: currentPassword,
-      );
+      await _service.auth.signInWithPassword(email: email, password: password);
     } on sb.AuthException catch (e) {
-      throw ex.AuthException('Your current password is incorrect.',
-          code: e.statusCode);
+      throw ex.AuthException(e.message, code: e.statusCode);
     }
+  }
 
+  @override
+  Future<void> changeEmail(String newEmail) async {
     try {
-      await _service.auth.updateUser(sb.UserAttributes(password: newPassword));
+      await _service.auth.updateUser(
+        sb.UserAttributes(email: newEmail),
+        emailRedirectTo: _emailChangedRedirect,
+      );
     } on sb.AuthException catch (e) {
       throw ex.AuthException(e.message, code: e.statusCode);
     }

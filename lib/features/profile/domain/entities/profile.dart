@@ -19,8 +19,9 @@ class Profile extends Equatable {
   final UserRole role;
   final String? email;
 
-  /// Credibility, maintained by `moderation.calculate_credibility()`.
-  /// Ranges -50..100 and is only computed for analysts.
+  /// Credibility 0..100, the model shared with the web app
+  /// (`credibility_get`, migration 12). Only computed for OSINT analysts;
+  /// the stored value is refreshed whenever a profile is viewed.
   final int score;
 
   /// Community karma, bumped through the `upsert_aura_points` RPC.

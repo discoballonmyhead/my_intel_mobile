@@ -15,6 +15,7 @@ class ProfileHeader extends StatelessWidget {
     required this.onFollowing,
     required this.onEdit,
     this.bio,
+    this.onCredibility,
     super.key,
   });
 
@@ -24,6 +25,9 @@ class ProfileHeader extends StatelessWidget {
   final VoidCallback onFollowers;
   final VoidCallback onFollowing;
   final VoidCallback onEdit;
+
+  /// Opens the credibility breakdown (analysts with a loaded report).
+  final VoidCallback? onCredibility;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +118,7 @@ class ProfileHeader extends StatelessWidget {
             stat('${stats.following} following', onFollowing),
             dot(),
             stat('${profile.auraPoints} aura', null),
-            if (profile.isAnalyst) ...[dot(), stat('${profile.score} cred', null)],
+            if (profile.isAnalyst) ...[dot(), stat('${profile.score} cred', onCredibility)],
           ],
         ),
         TextButton(

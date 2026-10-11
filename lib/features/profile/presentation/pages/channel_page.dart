@@ -15,6 +15,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/role_badge.dart';
 import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
+import '../../../credibility/presentation/widgets/credibility_breakdown_sheet.dart';
 import '../../../messaging/presentation/cubits/inbox_cubit.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
@@ -206,8 +207,17 @@ class ChannelPage extends StatelessWidget {
                                       ),
                                       if (profile.isAnalyst)
                                         _Metric(
-                                            label: 'CRED',
-                                            value: profile.score),
+                                          label: 'CRED',
+                                          value: profile.score,
+                                          onTap: state.credibility == null
+                                              ? null
+                                              : () => CredibilityBreakdownSheet
+                                                  .show(
+                                                    context,
+                                                    state.credibility!,
+                                                    username: profile.username,
+                                                  ),
+                                        ),
                                     ],
                                   ),
                                 ],

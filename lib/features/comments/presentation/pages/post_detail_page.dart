@@ -23,6 +23,8 @@ import '../../../feed/presentation/widgets/post_edit_history_sheet.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../../reactions/presentation/cubits/reactions_cubit.dart';
+import '../../../reactions/presentation/widgets/reaction_bar.dart';
 import '../../domain/entities/comment.dart';
 import '../cubits/post_detail_cubit.dart';
 import '../widgets/comment_composer.dart';
@@ -286,7 +288,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   children: [
                     Expanded(
                       child: RefreshIndicator(
-                        onRefresh: cubit.refresh,
+                        onRefresh: () => Future.wait([
+                          context
+                              .read<ReactionsCubit>()
+                              .refresh([state.postId]),
+                          cubit.refresh(),
+                        ]),
                         child: ContentColumn(
                           padded: false,
                           child: _Thread(
@@ -360,6 +367,7 @@ class _Thread extends StatelessWidget {
         onComment: onCommentButton,
         onMore: onPostMore,
         onAuthorTap: openChannel,
+        footer: post.isOsint ? ReactionBar(postId: post.id) : null,
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(

@@ -39,6 +39,7 @@ class FeedProvider extends ChangeNotifier {
         _toggleLike = toggleLike,
         _toggleSave = toggleSave,
         _toggleRepost = toggleRepost,
+        _votePoll = votePoll,
         _watchNewPosts = watchNewPosts {
     _listenForUpdates();
   }
