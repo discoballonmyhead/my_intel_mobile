@@ -721,60 +721,73 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
+    // As designed (Figma 3.3/3.4): like, comment, repost on the left; share
+    // and save on the right.
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _ActionButton(
-            icon: Icons.mode_comment_outlined,
-            tooltip: 'Comment',
-            count: post.replyCount,
-            onTap: onComment,
-          ),
-          Builder(
-            builder: (buttonContext) => _ActionButton(
-              icon: Icons.repeat_rounded,
-              tooltip: post.reposted ? 'Undo repost' : 'Repost',
-              count: post.repostCount,
-              active: post.reposted,
-              activeColor: palette.verified,
-              onTap: onRepost == null
-                  ? null
-                  : onQuote == null
-                      ? onRepost
-                      : () => _showRepostMenu(
-                          buttonContext, post, onRepost!, onQuote!),
-            ),
-          ),
-          _ActionButton(
-            icon: post.liked
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
-            tooltip: post.liked ? 'Unlike' : 'Like',
-            count: post.likes,
-            active: post.liked,
-            activeColor: palette.accent2,
-            onTap: onLike,
-          ),
-          _ActionButton(
-            icon: post.saved
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded,
-            tooltip: post.saved ? 'Remove from saved' : 'Save',
-            active: post.saved,
-            activeColor: palette.accent,
-            onTap: onSave,
-            minWidth: 44,
-          ),
-          if (onShare != null)
+      child: Transform.translate(
+        offset: const Offset(-10, 0),
+        child: Row(
+          children: [
             _ActionButton(
-              icon: Icons.ios_share_rounded,
-              tooltip: 'Share',
-              onTap: onShare,
-              minWidth: 44,
+              icon: post.liked
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              tooltip: post.liked ? 'Unlike' : 'Like',
+              count: post.likes,
+              active: post.liked,
+              activeColor: palette.accent2,
+              onTap: onLike,
             ),
-        ],
+            _ActionButton(
+              icon: Icons.mode_comment_outlined,
+              tooltip: 'Comment',
+              count: post.replyCount,
+              onTap: onComment,
+            ),
+            Builder(
+              builder: (buttonContext) => _ActionButton(
+                icon: Icons.repeat_rounded,
+                tooltip: post.reposted ? 'Undo repost' : 'Repost',
+                count: post.repostCount,
+                active: post.reposted,
+                activeColor: palette.verified,
+                onTap: onRepost == null
+                    ? null
+                    : onQuote == null
+                        ? onRepost
+                        : () => _showRepostMenu(
+                            buttonContext, post, onRepost!, onQuote!),
+              ),
+            ),
+            const Spacer(),
+            Transform.translate(
+              offset: const Offset(20, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onShare != null)
+                    _ActionButton(
+                      icon: Icons.ios_share_rounded,
+                      tooltip: 'Share',
+                      onTap: onShare,
+                      minWidth: 44,
+                    ),
+                  _ActionButton(
+                    icon: post.saved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    tooltip: post.saved ? 'Remove from saved' : 'Save',
+                    active: post.saved,
+                    activeColor: palette.accent,
+                    onTap: onSave,
+                    minWidth: 44,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

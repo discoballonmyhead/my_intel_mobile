@@ -184,6 +184,8 @@ class _PersonRow extends StatelessWidget {
                           foregroundColor: onSurface,
                           side: BorderSide(color: palette.border),
                           shape: const StadiumBorder(),
+                          // The theme's full-width minimum size can't fit in a row.
+                          minimumSize: const Size(96, 36),
                           textStyle: inter(14, weight: FontWeight.w600),
                         ),
                         child: const Text('Following'),
@@ -194,6 +196,8 @@ class _PersonRow extends StatelessWidget {
                           backgroundColor: palette.accent,
                           foregroundColor: Colors.white,
                           shape: const StadiumBorder(),
+                          // The theme's full-width minimum size can't fit in a row.
+                          minimumSize: const Size(96, 36),
                           textStyle: inter(14, weight: FontWeight.w600),
                         ),
                         child: const Text('Follow'),
