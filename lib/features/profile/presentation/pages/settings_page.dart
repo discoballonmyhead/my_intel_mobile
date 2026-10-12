@@ -84,7 +84,7 @@ class SettingsPage extends StatelessWidget {
                 SettingsGroup([
                   SettingsRow(
                     title: 'Appearance',
-                    icon: Icons.contrast_rounded,
+                    icon: Icons.palette_outlined,
                     value: themeLabel(theme.mode),
                     onTap: () => context.push(AppRoutes.appearance),
                   ),
@@ -110,6 +110,8 @@ class SettingsPage extends StatelessWidget {
                       onTap: () => context.push(AppRoutes.admin),
                     ),
                   ]),
+                // As designed (Figma 3.7/3.8): one card, Delete account in red,
+                // no arrows on either row.
                 SettingsGroup([
                   SettingsRow(
                     title: 'Sign out',
@@ -117,13 +119,12 @@ class SettingsPage extends StatelessWidget {
                     chevron: false,
                     onTap: () => _signOut(context),
                   ),
-                ]),
-                SettingsGroup([
                   SettingsRow(
                     title: 'Delete account',
                     icon: Icons.delete_outline_rounded,
-                    iconColor: palette.accent2,
-                    titleColor: palette.accent2,
+                    iconColor: palette.accent,
+                    titleColor: palette.accent,
+                    chevron: false,
                     onTap: () => context.push(AppRoutes.deleteAccount),
                   ),
                 ]),
