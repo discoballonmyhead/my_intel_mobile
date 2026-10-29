@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../domain/entities/message.dart';
@@ -232,6 +233,14 @@ class _ChatPageState extends State<ChatPage> {
                             onLongPress: _onMessageLongPress,
                           ),
                   ),
+                  if (conversation != null)
+                    EncryptionNotice(
+                      encrypted: conversation.isEncrypted,
+                      waitingFor: [
+                        for (final p in conversation.membersWithoutKeys(state.myUserId))
+                          p.displayName,
+                      ],
+                    ),
                   ChatComposer(
                     controller: _controller,
                     onSubmit: _submit,

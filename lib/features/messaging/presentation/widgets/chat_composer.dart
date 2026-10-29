@@ -91,9 +91,8 @@ class ChatComposer extends StatelessWidget {
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: controller,
                     builder: (context, value, _) {
-                      final canSend = enabled &&
-                          !isSending &&
-                          value.text.trim().isNotEmpty;
+                      final canSend =
+                          enabled && !isSending && value.text.trim().isNotEmpty;
                       return IconButton.filled(
                         onPressed: canSend ? onSubmit : null,
                         icon: isSending

@@ -8,6 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../domain/entities/conversation.dart';
 import '../cubits/chat_cubit.dart';
 
@@ -157,6 +158,20 @@ class ConversationInfoSheet extends StatelessWidget {
                     context.push(AppRoutes.channelFor(
                         conversation.other(state.myUserId)!.profile!.username));
                   },
+                ),
+              if (!conversation.isGroup && conversation.other(state.myUserId) != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Verify security code'),
+                  subtitle: Text(conversation.isEncrypted
+                      ? 'Messages are end-to-end encrypted'
+                      : 'Encryption starts with the next message'),
+                  onTap: () => SafetyNumberSheet.show(
+                    context,
+                    userId: conversation.other(state.myUserId)!.userId,
+                    name: conversation.other(state.myUserId)!.displayName,
+                  ),
                 ),
               const Divider(height: AppSpacing.xl),
               if (conversation.isGroup)

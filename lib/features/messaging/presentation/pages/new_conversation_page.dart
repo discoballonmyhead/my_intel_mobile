@@ -123,7 +123,8 @@ class NewConversationPage extends StatelessWidget {
                                 selected
                                     ? Icons.check_circle_rounded
                                     : Icons.circle_outlined,
-                                color: selected ? palette.accent : palette.muted,
+                                color:
+                                    selected ? palette.accent : palette.muted,
                               ),
                               onTap: () => cubit.toggle(profile),
                             );

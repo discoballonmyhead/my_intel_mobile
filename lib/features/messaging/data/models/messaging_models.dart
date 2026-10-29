@@ -30,10 +30,15 @@ class MessageModel extends Message {
     super.editCount,
     super.deletedAt,
     super.removedByModerator,
+    super.encryption,
+    super.sealed,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     final rawAttachments = json['attachments'];
+    final isE2ee = json['kind'] == 'e2ee';
+    final envelope = json['envelope'];
+    final ciphertext = json['ciphertext'] as String?;
     return MessageModel(
       id: asInt(json['id']) ?? 0,
       conversationId: json['conversation_id'] as String,
@@ -54,6 +59,16 @@ class MessageModel extends Message {
       editCount: asInt(json['edit_count']) ?? 0,
       deletedAt: parseTimestamp(json['deleted_at']),
       removedByModerator: (json['removed_by_moderator'] as bool?) ?? false,
+      // the repository opens it; until then it counts as "not on this phone"
+      encryption:
+          isE2ee ? MessageEncryption.unavailable : MessageEncryption.none,
+      sealed: isE2ee && envelope is Map && ciphertext != null
+          ? SealedContent(
+              envelope: Map<String, dynamic>.from(envelope),
+              ciphertext: ciphertext,
+              frankingTag: json['franking_tag'] as String?,
+            )
+          : null,
     );
   }
 }
@@ -65,6 +80,7 @@ class ParticipantModel extends Participant {
     super.joinedAt,
     super.lastReadMessageId,
     super.profile,
+    super.hasE2ee,
   });
 
   factory ParticipantModel.fromJson(Map<String, dynamic> json,
@@ -75,6 +91,7 @@ class ParticipantModel extends Participant {
       joinedAt: parseTimestamp(json['joined_at']),
       lastReadMessageId: asInt(json['last_read_message_id']),
       profile: profile,
+      hasE2ee: (json['has_e2ee'] as bool?) ?? false,
     );
   }
 }
@@ -90,6 +107,8 @@ class ConversationModel extends Conversation {
     super.myRole,
     super.mutedUntil,
     super.participants,
+    super.isEncrypted,
+    super.keyEpoch,
   });
 
   /// User ids of members, so the repository can batch-fetch their profiles.
@@ -122,6 +141,8 @@ class ConversationModel extends Conversation {
       myRole: ParticipantRole.fromValue(json['my_role'] as String?),
       mutedUntil: parseTimestamp(json['muted_until']),
       participants: participants,
+      isEncrypted: (json['e2ee'] as bool?) ?? false,
+      keyEpoch: asInt(json['key_epoch']) ?? 0,
     );
   }
 }
@@ -142,6 +163,7 @@ class InboxEntryModel extends InboxEntry {
     super.unreadCount,
     super.isMuted,
     super.myRole,
+    super.isEncrypted,
   });
 
   factory InboxEntryModel.fromJson(Map<String, dynamic> json,
@@ -162,6 +184,7 @@ class InboxEntryModel extends InboxEntry {
       unreadCount: asInt(json['unread_count']) ?? 0,
       isMuted: (json['is_muted'] as bool?) ?? false,
       myRole: ParticipantRole.fromValue(json['my_role'] as String?),
+      isEncrypted: (json['is_e2ee'] as bool?) ?? false,
     );
   }
 }

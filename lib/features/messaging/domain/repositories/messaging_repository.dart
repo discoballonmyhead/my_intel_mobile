@@ -38,7 +38,9 @@ abstract interface class MessagingRepository {
     List<MessageAttachment> attachments = const [],
     int? replyToId,
   });
-  Future<Result<Message>> editMessage(int messageId, String body);
+
+  /// Encrypted messages are re-encrypted; others edited in place.
+  Future<Result<Message>> editMessage(Message message, String body);
   Future<Result<void>> deleteMessage(int messageId, {bool forEveryone = false});
   Future<Result<void>> markRead(String conversationId, {int? messageId});
   Future<Result<void>> setMuted(String conversationId, DateTime? until);

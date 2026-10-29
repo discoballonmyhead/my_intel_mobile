@@ -24,6 +24,8 @@ import '../../features/auth/presentation/pages/verify_email_page.dart';
 import '../../features/auth/presentation/providers/auth_cubit.dart';
 import '../../features/comments/presentation/cubits/post_detail_cubit.dart';
 import '../../features/comments/presentation/pages/post_detail_page.dart';
+import '../../features/e2ee/presentation/pages/restore_messages_page.dart';
+import '../../features/e2ee/presentation/pages/secure_messaging_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/media/presentation/pages/reels_page.dart';
 import '../../features/messaging/presentation/cubits/chat_cubit.dart';
@@ -290,6 +292,18 @@ class AppRouter {
               path: 'support',
               name: RouteNames.support,
               builder: (context, state) => const SupportPage(),
+            ),
+            GoRoute(
+              path: 'secure-messaging',
+              name: RouteNames.secureMessaging,
+              builder: (context, state) => const SecureMessagingPage(),
+              routes: [
+                GoRoute(
+                  path: 'restore',
+                  name: RouteNames.restoreMessages,
+                  builder: (context, state) => const RestoreMessagesPage(),
+                ),
+              ],
             ),
           ],
         ),

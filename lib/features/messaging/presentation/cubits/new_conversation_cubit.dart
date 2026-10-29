@@ -179,13 +179,14 @@ class NewConversationCubit extends Cubit<NewConversationState> {
     final addTo = state.addToConversationId;
 
     if (addTo != null) {
-      final result = await _addMembers(
-          MembersParams(conversationId: addTo, userIds: ids));
+      final result =
+          await _addMembers(MembersParams(conversationId: addTo, userIds: ids));
       if (isClosed) return;
       result.fold(
-        (failure) => emit(state.copyWith(isSubmitting: false, failure: failure)),
-        (_) => emit(state.copyWith(
-            isSubmitting: false, resultConversationId: addTo)),
+        (failure) =>
+            emit(state.copyWith(isSubmitting: false, failure: failure)),
+        (_) => emit(
+            state.copyWith(isSubmitting: false, resultConversationId: addTo)),
       );
       return;
     }
@@ -197,7 +198,8 @@ class NewConversationCubit extends Cubit<NewConversationState> {
     if (isClosed) return;
     result.fold(
       (failure) => emit(state.copyWith(isSubmitting: false, failure: failure)),
-      (id) => emit(state.copyWith(isSubmitting: false, resultConversationId: id)),
+      (id) =>
+          emit(state.copyWith(isSubmitting: false, resultConversationId: id)),
     );
   }
 

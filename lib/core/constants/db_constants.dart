@@ -99,12 +99,35 @@ class MessagingRpc {
   static const String messages = 'msg_get_messages';
   static const String unreadTotal = 'msg_get_unread_total';
   static const String conversation = 'msg_get_conversation';
+  // end-to-end encrypted (migration 18)
+  static const String sendE2ee = 'msg_send_e2ee';
+  static const String editE2ee = 'msg_edit_e2ee';
+}
+
+/// End-to-end encryption keys, sender keys and PIN backup (migration 18).
+class E2eeRpc {
+  const E2eeRpc._();
+  static const String registerDevice = 'e2ee_register_device';
+  static const String setSignedPreKey = 'e2ee_set_signed_prekey';
+  static const String uploadPreKeys = 'e2ee_upload_prekeys';
+  static const String status = 'e2ee_status';
+  static const String bundle = 'e2ee_get_bundle';
+  static const String identities = 'e2ee_get_identities';
+  static const String putSenderKeys = 'msg_put_sender_keys';
+  static const String getSenderKeys = 'msg_get_sender_keys';
+  static const String ackSenderKeys = 'msg_ack_sender_keys';
+  static const String backupInfo = 'e2ee_backup_info';
+  static const String backupBegin = 'e2ee_backup_begin';
+  static const String backupPut = 'e2ee_backup_put';
+  static const String backupRestore = 'e2ee_backup_restore';
+  static const String backupDelete = 'e2ee_backup_delete';
 }
 
 /// RPCs for user reports and the moderator queue (migration 05).
 class ReportRpc {
   const ReportRpc._();
   static const String report = 'mod_report';
+  static const String reportMessage = 'mod_report_message';
   static const String myReports = 'mod_get_my_reports';
   static const String queue = 'mod_get_report_queue';
   static const String forTarget = 'mod_get_reports_for_target';

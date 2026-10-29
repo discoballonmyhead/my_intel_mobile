@@ -100,6 +100,11 @@ class AccountSettingsPage extends StatelessWidget {
                     title: 'Change password',
                     onTap: () => context.push(AppRoutes.changePassword),
                   ),
+                  SettingsRow(
+                    title: 'Secure messaging',
+                    subtitle: 'Encryption and PIN backup',
+                    onTap: () => context.push(AppRoutes.secureMessaging),
+                  ),
                 ]),
                 SettingsGroup([
                   SettingsRow(

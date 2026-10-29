@@ -134,9 +134,8 @@ class InboxCubit extends Cubit<InboxState> {
     _debounce = Timer(const Duration(milliseconds: 350), refresh);
   }
 
-  int _sumUnread(List<InboxEntry> entries) => entries
-      .where((e) => !e.isMuted)
-      .fold(0, (sum, e) => sum + e.unreadCount);
+  int _sumUnread(List<InboxEntry> entries) =>
+      entries.where((e) => !e.isMuted).fold(0, (sum, e) => sum + e.unreadCount);
 
   /// Clears the badge immediately when a chat is opened; the server catches up
   /// via `msg_mark_read` and the realtime tick that follows.

@@ -90,7 +90,8 @@ class CreateGroupConversation implements UseCase<String, CreateGroupParams> {
       return const Err(ValidationFailure('Add at least one other person.'));
     }
     if (params.title.trim().length > 100) {
-      return const Err(ValidationFailure('Group names are limited to 100 characters.'));
+      return const Err(
+          ValidationFailure('Group names are limited to 100 characters.'));
     }
     return _repository.createGroup(
       title: params.title.trim(),
@@ -115,7 +116,8 @@ class UpdateGroup implements UseCase<void, UpdateGroupParams> {
   final MessagingRepository _repository;
 
   @override
-  Future<Result<void>> call(UpdateGroupParams params) => _repository.updateGroup(
+  Future<Result<void>> call(UpdateGroupParams params) =>
+      _repository.updateGroup(
         params.conversationId,
         title: params.title,
         avatarUrl: params.avatarUrl,
@@ -146,7 +148,8 @@ class RemoveGroupMember implements UseCase<void, MembersParams> {
     if (params.userIds.length != 1) {
       return const Err(ValidationFailure('Remove one member at a time.'));
     }
-    return _repository.removeMember(params.conversationId, params.userIds.first);
+    return _repository.removeMember(
+        params.conversationId, params.userIds.first);
   }
 }
 
@@ -211,7 +214,8 @@ class SendMessage implements UseCase<Message, SendMessageParams> {
       return const Err(ValidationFailure('Message is empty.'));
     }
     if (body.length > MessagingPolicy.maxBodyLength) {
-      return const Err(ValidationFailure('Messages are limited to 4000 characters.'));
+      return const Err(
+          ValidationFailure('Messages are limited to 4000 characters.'));
     }
     return _repository.sendMessage(
       conversationId: params.conversationId,
@@ -239,18 +243,21 @@ class EditMessage implements UseCase<Message, EditMessageParams> {
       return const Err(ValidationFailure('Message is empty.'));
     }
     if (body.length > MessagingPolicy.maxBodyLength) {
-      return const Err(ValidationFailure('Messages are limited to 4000 characters.'));
+      return const Err(
+          ValidationFailure('Messages are limited to 4000 characters.'));
     }
     if (DateTime.now().toUtc().difference(params.message.createdAt) >=
         MessagingPolicy.editWindow) {
-      return const Err(ValidationFailure('Messages can only be edited for 15 minutes.'));
+      return const Err(
+          ValidationFailure('Messages can only be edited for 15 minutes.'));
     }
-    return _repository.editMessage(params.message.id, body);
+    return _repository.editMessage(params.message, body);
   }
 }
 
 class DeleteMessageParams {
-  const DeleteMessageParams({required this.messageId, this.forEveryone = false});
+  const DeleteMessageParams(
+      {required this.messageId, this.forEveryone = false});
   final int messageId;
   final bool forEveryone;
 }
@@ -275,8 +282,8 @@ class MarkConversationRead implements UseCase<void, MarkReadParams> {
   final MessagingRepository _repository;
 
   @override
-  Future<Result<void>> call(MarkReadParams params) => _repository
-      .markRead(params.conversationId, messageId: params.messageId);
+  Future<Result<void>> call(MarkReadParams params) =>
+      _repository.markRead(params.conversationId, messageId: params.messageId);
 }
 
 // ── Realtime ───────────────────────────────────────────────────────────────

@@ -48,11 +48,11 @@ class SignUp implements UseCase<SignUpResult, SignUpParams> {
       );
     }
 
-    // Only these two roles may be self-assigned; osint is granted by an admin
-    // through identity.osint_applications.
-    final role = params.role == UserRole.reporter
-        ? UserRole.reporter
-        : UserRole.public;
+    // Only these two may be asked for. The database always creates the
+    // account as 'public' and files a "reporter" badge request that staff
+    // approve (migration 14); osint goes through the OSINT application.
+    final role =
+        params.role == UserRole.reporter ? UserRole.reporter : UserRole.public;
 
     return _repository.signUp(
       email: email,

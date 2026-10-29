@@ -31,7 +31,10 @@ class AppRoutes {
   static const String changePassword = '/settings/account/password';
   static const String changeEmail = '/settings/account/email';
   static const String support = '/settings/support';
+  static const String secureMessaging = '/settings/secure-messaging';
+  static const String restoreMessages = '/settings/secure-messaging/restore';
   static const String post = '/post/:postId';
+
   /// The signed-in user's own followers / following.
   static const String followers = '/followers';
   static const String following = '/following';
@@ -71,7 +74,13 @@ class AppRoutes {
 
   /// Tabs shown in the bottom bar / nav rail, in order. Must match the
   /// branches in `AppRouter` and `shellDestinations`.
-  static const List<String> shellTabs = [feed, articles, reels, messages, profile];
+  static const List<String> shellTabs = [
+    feed,
+    articles,
+    reels,
+    messages,
+    profile
+  ];
 
   static const Set<String> publicRoutes = {
     login,
@@ -82,7 +91,11 @@ class AppRoutes {
   };
 
   /// Staff routes that moderators may NOT open (admins only).
-  static const Set<String> adminOnlyRoutes = {adminOsint, adminClaims, adminAudit};
+  static const Set<String> adminOnlyRoutes = {
+    adminOsint,
+    adminClaims,
+    adminAudit
+  };
 
   static bool isStaffRoute(String location) =>
       location == admin || location.startsWith('$admin/');
@@ -114,6 +127,8 @@ class RouteNames {
   static const String changePassword = 'changePassword';
   static const String changeEmail = 'changeEmail';
   static const String support = 'support';
+  static const String secureMessaging = 'secureMessaging';
+  static const String restoreMessages = 'restoreMessages';
   static const String followers = 'followers';
   static const String following = 'following';
   static const String post = 'post';

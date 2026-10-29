@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../../../features/auth/presentation/providers/auth_cubit.dart';
+import '../../../features/e2ee/domain/message_crypto.dart';
 import '../../../features/messaging/data/datasources/messaging_remote_data_source.dart';
 import '../../../features/messaging/data/repositories/messaging_repository_impl.dart';
 import '../../../features/messaging/domain/repositories/messaging_repository.dart';
@@ -17,8 +18,9 @@ void registerMessagingModule(GetIt sl) {
   sl
     ..registerLazySingleton<MessagingRemoteDataSource>(
         () => MessagingRemoteDataSourceImpl(sl()))
-    ..registerLazySingleton<MessagingRepository>(
-        () => MessagingRepositoryImpl(sl(), sl()))
+    ..registerLazySingleton<MessagingRepository>(() => MessagingRepositoryImpl(
+        sl(), sl(),
+        crypto: sl<MessageCrypto>(), currentUserId: currentUserId))
 
     // Use cases
     ..registerLazySingleton(() => GetInbox(sl()))

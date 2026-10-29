@@ -35,6 +35,7 @@ class MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
+    if (message.isSilentSystem) return const SizedBox.shrink();
     if (message.isSystem) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -49,6 +50,8 @@ class MessageBubble extends StatelessWidget {
 
     final background = isMine ? palette.accent.withValues(alpha: 0.16) : palette.surface2;
     final deleted = message.isDeleted;
+    // encrypted but not readable here: show the status like a deleted message
+    final unreadable = !deleted && !message.isReadable;
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -89,7 +92,7 @@ class MessageBubble extends StatelessWidget {
                   message: replyTo!,
                   senderName: replySenderName,
                 ),
-                if (deleted)
+                if (deleted || unreadable)
                   Text(
                     message.preview,
                     style: theme.textTheme.bodySmall?.copyWith(

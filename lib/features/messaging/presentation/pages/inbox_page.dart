@@ -13,6 +13,7 @@ import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../domain/entities/conversation.dart';
 import '../cubits/inbox_cubit.dart';
 
@@ -82,6 +83,18 @@ class InboxPage extends StatelessWidget {
         },
         builder: (context, state) {
           final cubit = context.read<InboxCubit>();
+          return Column(
+            children: [
+              const E2eeInboxBanner(),
+              Expanded(child: _list(context, state, cubit)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _list(BuildContext context, InboxState state, InboxCubit cubit) {
           return RefreshIndicator(
             onRefresh: cubit.refresh,
             child: switch (state.status) {
@@ -120,9 +133,6 @@ class InboxPage extends StatelessWidget {
                 ),
             },
           );
-        },
-      ),
-    );
   }
 }
 

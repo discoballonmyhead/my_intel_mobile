@@ -272,6 +272,18 @@ class ChatCubit extends Cubit<ChatState> {
         _headerDebounce?.cancel();
         _headerDebounce =
             Timer(const Duration(milliseconds: 400), reloadHeader);
+      case DecryptionKeysArrived():
+        _reopenRecent();
+    }
+  }
+
+  /// Group keys arrived: messages that were waiting for them can be read now.
+  Future<void> _reopenRecent() async {
+    if (!state.messages.any((m) => m.encryption == MessageEncryption.waitingForKey)) return;
+    final page = await _getMessages(GetMessagesParams(conversationId: _id));
+    if (isClosed) return;
+    for (final m in page.valueOrNull ?? const <Message>[]) {
+      _upsert(m);
     }
   }
 

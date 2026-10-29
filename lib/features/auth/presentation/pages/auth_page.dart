@@ -147,12 +147,16 @@ class _AuthPageState extends State<AuthPage> {
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) => _submit(),
                     autofillHints: [
-                      _signUp ? AutofillHints.newPassword : AutofillHints.password
+                      _signUp
+                          ? AutofillHints.newPassword
+                          : AutofillHints.password
                     ],
                     validator: (v) {
                       final value = v ?? '';
                       if (_signUp) {
-                        return value.length >= 8 ? null : 'At least 8 characters';
+                        return value.length >= 8
+                            ? null
+                            : 'At least 8 characters';
                       }
                       return value.isEmpty ? 'Enter your password' : null;
                     },
@@ -174,7 +178,7 @@ class _AuthPageState extends State<AuthPage> {
                     label: !_signUp
                         ? 'SIGN IN'
                         : _role == UserRole.reporter
-                            ? 'JOIN AS REPORTER'
+                            ? 'REQUEST REPORTER ACCESS'
                             : 'JOIN AS MEMBER',
                     loading: state.isLoading,
                     onPressed: _submit,
