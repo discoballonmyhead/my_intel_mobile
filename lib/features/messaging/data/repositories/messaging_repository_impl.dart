@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/error/failure_mapper.dart';
 import '../../../../core/network/rpc_runner.dart';
 import '../../../../core/utils/result.dart';
@@ -11,9 +14,12 @@ import '../models/messaging_models.dart';
 /// Profiles live in `identity`, conversations in `messaging`; PostgREST can't
 /// embed across schemas, so authors are batch-fetched and merged here.
 class MessagingRepositoryImpl implements MessagingRepository {
-  MessagingRepositoryImpl(this._remote, this._profiles);
+  MessagingRepositoryImpl(this._remote, this._profiles,
+      {String? Function()? currentUserId})
+      : _currentUserId = currentUserId;
 
   final MessagingRemoteDataSource _remote;
+  final String? Function()? _currentUserId;
   final ProfileRemoteDataSource _profiles;
 
   @override
@@ -85,6 +91,37 @@ class MessagingRepositoryImpl implements MessagingRepository {
   @override
   Future<Result<void>> deleteConversation(String conversationId) =>
       guard(() => _remote.deleteConversation(conversationId));
+
+  int _uploadSeq = 0;
+
+  @override
+  Future<Result<MessageAttachment>> uploadAttachment({
+    required List<int> bytes,
+    required String type,
+    required String fileName,
+    String? contentType,
+    void Function(double sent)? onProgress,
+  }) {
+    return guard(() async {
+      // `{user_id}/{ms}_{n}.{ext}`: storage only accepts uploads into the
+      // sender's own folder (same rule as post attachments).
+      final userId = _currentUserId?.call();
+      if (userId == null) {
+        throw const ex.AuthException('You must be signed in to upload.');
+      }
+      final dot = fileName.lastIndexOf('.');
+      final ext = dot > 0 && dot < fileName.length - 1
+          ? fileName.substring(dot + 1).toLowerCase()
+          : (type == 'image' ? 'jpg' : type == 'video' ? 'mp4' : 'bin');
+      final path =
+          '$userId/${DateTime.now().millisecondsSinceEpoch}_${_uploadSeq++}.$ext';
+      final url = await _remote.uploadAttachment(
+          Uint8List.fromList(bytes), path, contentType,
+          onProgress: onProgress);
+      return MessageAttachment(
+          url: url, type: type, name: fileName, size: bytes.length);
+    });
+  }
 
   @override
   Future<Result<Message>> sendMessage({

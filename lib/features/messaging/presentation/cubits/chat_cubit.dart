@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +11,79 @@ import '../../domain/entities/message.dart';
 import '../../domain/usecases/messaging_usecases.dart';
 
 enum ChatStatus { loading, ready, error }
+
+/// A photo, video or file picked in the composer, not uploaded yet.
+class PickedChatFile extends Equatable {
+  const PickedChatFile({
+    required this.bytes,
+    required this.type,
+    required this.name,
+    this.contentType,
+  });
+
+  final Uint8List bytes;
+
+  /// 'image' | 'video' | 'file'
+  final String type;
+  final String name;
+  final String? contentType;
+
+  bool get isImage => type == 'image';
+
+  @override
+  List<Object?> get props => [name, type, bytes.length];
+}
+
+/// A message with attachments that is still uploading, or that failed. Shown
+/// at the bottom of the thread until the server copy arrives.
+class OutgoingMessage extends Equatable {
+  const OutgoingMessage({
+    required this.localId,
+    required this.files,
+    this.body,
+    this.replyToId,
+    this.uploaded = const [],
+    this.progress = 0,
+    this.error,
+  });
+
+  final int localId;
+  final List<PickedChatFile> files;
+  final String? body;
+  final int? replyToId;
+
+  /// Files already stored, in order; a retry carries on after these.
+  final List<MessageAttachment> uploaded;
+
+  /// Share of all the bytes sent so far (0–1).
+  final double progress;
+
+  /// Why it wasn't sent; null while sending.
+  final String? error;
+
+  bool get failed => error != null;
+  int get percent => (progress * 100).round().clamp(0, 100);
+
+  OutgoingMessage copyWith({
+    List<MessageAttachment>? uploaded,
+    double? progress,
+    String? error,
+    bool clearError = false,
+  }) =>
+      OutgoingMessage(
+        localId: localId,
+        files: files,
+        body: body,
+        replyToId: replyToId,
+        uploaded: uploaded ?? this.uploaded,
+        progress: progress ?? this.progress,
+        error: clearError ? null : error ?? this.error,
+      );
+
+  @override
+  List<Object?> get props =>
+      [localId, files, body, uploaded, progress, error];
+}
 
 class ChatState extends Equatable {
   const ChatState({
@@ -26,6 +100,7 @@ class ChatState extends Equatable {
     this.failure,
     this.actionFailure,
     this.isClosedForMe = false,
+    this.outgoing = const [],
   });
 
   final String conversationId;
@@ -49,6 +124,9 @@ class ChatState extends Equatable {
 
   /// True after the user left / deleted the conversation → page pops.
   final bool isClosedForMe;
+
+  /// Messages with attachments still uploading, oldest first.
+  final List<OutgoingMessage> outgoing;
 
   String get title => conversation?.displayName(myUserId) ?? '';
 
@@ -96,6 +174,7 @@ class ChatState extends Equatable {
     Failure? failure,
     Failure? actionFailure,
     bool? isClosedForMe,
+    List<OutgoingMessage>? outgoing,
     bool clearReply = false,
     bool clearEditing = false,
     bool clearFailure = false,
@@ -116,6 +195,7 @@ class ChatState extends Equatable {
       actionFailure:
           clearActionFailure ? null : actionFailure ?? this.actionFailure,
       isClosedForMe: isClosedForMe ?? this.isClosedForMe,
+      outgoing: outgoing ?? this.outgoing,
     );
   }
 
@@ -133,6 +213,7 @@ class ChatState extends Equatable {
         failure,
         actionFailure,
         isClosedForMe,
+        outgoing,
       ];
 }
 
@@ -154,7 +235,8 @@ class ChatCubit extends Cubit<ChatState> {
     required SetConversationMuted setMuted,
     required UpdateGroup updateGroup,
     required RemoveGroupMember removeMember,
-  })  : _getConversation = getConversation,
+    UploadMessageAttachment? uploadAttachment,
+  })  : _upload = uploadAttachment, _getConversation = getConversation,
         _getMessages = getMessages,
         _sendMessage = sendMessage,
         _editMessage = editMessage,
@@ -180,6 +262,8 @@ class ChatCubit extends Cubit<ChatState> {
   final SetConversationMuted _setMuted;
   final UpdateGroup _updateGroup;
   final RemoveGroupMember _removeMember;
+  final UploadMessageAttachment? _upload;
+  int _localIds = 0;
 
   StreamSubscription<ConversationEvent>? _realtime;
   Timer? _markReadDebounce;
@@ -351,6 +435,112 @@ class ChatCubit extends Cubit<ChatState> {
     );
   }
 
+  /// Uploads [files] one by one, then sends them with [text] as the caption.
+  /// The message shows a percentage meanwhile; if anything fails it stays in
+  /// the thread with Retry and Remove. Returns true once sent.
+  Future<bool> sendFiles(List<PickedChatFile> files, String text) async {
+    if (files.isEmpty || _upload == null) return false;
+    final caption = text.trim();
+    final outgoing = OutgoingMessage(
+      localId: ++_localIds,
+      files: files,
+      body: caption.isEmpty ? null : caption,
+      replyToId: state.replyTo?.id,
+    );
+    emit(state.copyWith(
+        outgoing: [...state.outgoing, outgoing], clearReply: true));
+    return _deliver(outgoing.localId);
+  }
+
+  /// Tries a failed message again, keeping the files that already went up.
+  Future<bool> retryOutgoing(int localId) {
+    final o = _outgoing(localId);
+    if (o == null || !o.failed) return Future.value(false);
+    _replaceOutgoing(o.copyWith(clearError: true));
+    return _deliver(localId);
+  }
+
+  void removeOutgoing(int localId) => emit(state.copyWith(
+      outgoing: state.outgoing.where((o) => o.localId != localId).toList()));
+
+  OutgoingMessage? _outgoing(int localId) {
+    for (final o in state.outgoing) {
+      if (o.localId == localId) return o;
+    }
+    return null;
+  }
+
+  void _replaceOutgoing(OutgoingMessage next) => emit(state.copyWith(
+      outgoing: [
+        for (final o in state.outgoing) o.localId == next.localId ? next : o
+      ]));
+
+  Future<bool> _deliver(int localId) async {
+    final upload = _upload!;
+    var o = _outgoing(localId);
+    if (o == null) return false;
+    final files = o.files;
+    final total = files.fold<int>(0, (sum, f) => sum + f.bytes.length);
+    final uploaded = [...o.uploaded];
+
+    for (var i = uploaded.length; i < files.length; i++) {
+      final file = files[i];
+      final before = files
+          .take(i)
+          .fold<int>(0, (sum, f) => sum + f.bytes.length);
+      var lastShown = -1;
+      final result = await upload(UploadAttachmentParams(
+        bytes: file.bytes,
+        type: file.type,
+        fileName: file.name,
+        contentType: file.contentType,
+        onProgress: (sent) {
+          final overall = (before + sent * file.bytes.length) / total;
+          // Repaint at most once per percent.
+          final pct = (overall * 100).floor();
+          if (pct == lastShown || isClosed) return;
+          lastShown = pct;
+          final current = _outgoing(localId);
+          if (current != null) _replaceOutgoing(current.copyWith(progress: overall));
+        },
+      ));
+      if (isClosed) return false;
+      final attachment = result.valueOrNull;
+      o = _outgoing(localId);
+      if (o == null) return false; // removed while uploading
+      if (attachment == null) {
+        _replaceOutgoing(o.copyWith(
+            uploaded: uploaded,
+            error: result.failureOrNull?.message ?? 'Upload failed.'));
+        return false;
+      }
+      uploaded.add(attachment);
+      _replaceOutgoing(o.copyWith(uploaded: uploaded));
+    }
+
+    final sent = await _sendMessage(SendMessageParams(
+      conversationId: _id,
+      body: o!.body,
+      attachments: uploaded,
+      replyToId: o.replyToId,
+    ));
+    if (isClosed) return false;
+    final message = sent.valueOrNull;
+    if (message == null) {
+      final current = _outgoing(localId);
+      if (current != null) {
+        _replaceOutgoing(current.copyWith(
+            uploaded: uploaded,
+            progress: 1,
+            error: sent.failureOrNull?.message ?? 'Couldn’t send.'));
+      }
+      return false;
+    }
+    _upsert(message);
+    removeOutgoing(localId);
+    return true;
+  }
+
   // ── Message actions ────────────────────────────────────────────────────
 
   Future<void> deleteMessage(Message message, {required bool forEveryone}) async {
@@ -383,12 +573,14 @@ class ChatCubit extends Cubit<ChatState> {
 
   // ── Conversation actions ───────────────────────────────────────────────
 
-  Future<void> setMuted(bool muted) async {
+  Future<void> setMuted(bool muted) =>
+      muteFor(muted ? const Duration(days: 365 * 100) : null);
+
+  /// Mutes for [duration], or unmutes when it's null.
+  Future<void> muteFor(Duration? duration) async {
     final result = await _setMuted(SetMutedParams(
       conversationId: _id,
-      until: muted
-          ? DateTime.now().toUtc().add(const Duration(days: 365 * 100))
-          : null,
+      until: duration == null ? null : DateTime.now().toUtc().add(duration),
     ));
     if (isClosed) return;
     final failure = result.failureOrNull;

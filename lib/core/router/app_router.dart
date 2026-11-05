@@ -194,7 +194,9 @@ class AppRouter {
                           BlocProvider<NewConversationCubit>(
                         create: (_) => sl<NewConversationCubit>(
                             param1: const NewConversationArgs()),
-                        child: const NewConversationPage(),
+                        child: NewConversationPage(
+                            startAsGroup:
+                                state.uri.queryParameters['group'] == '1'),
                       ),
                     ),
                     GoRoute(

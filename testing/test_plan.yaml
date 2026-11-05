@@ -22,7 +22,7 @@
 # Never commit real credentials.
 
 version: 1
-updated: 2026-10-08
+updated: 2026-10-15
 app_id: app.statelesslabs.mintelspace
 account_under_test: Member (role `public`)
 figma: https://www.figma.com/design/WP6nNlcCOArlyy6eCljBWi
@@ -603,6 +603,135 @@ features:
         automation: manual
 
   # ── Unit tests ─────────────────────────────────────────────────────────────
+  - id: messages.inbox
+    area: Messages
+    name: Inbox with Chats and Groups tabs
+    status: ready
+    cases:
+      - id: messages.inbox.tabs
+        title: Switch between Chats and Groups
+        steps: [Open Messages, Tap Groups, Tap Chats]
+        expected:
+          - Each tab shows its unread count; rows show name, last message, time and unread count
+          - Groups ends with a "New group" card
+        automation: .maestro/messages/inbox_tabs.yaml
+      - id: messages.inbox.states
+        title: Empty, loading and error states
+        expected:
+          - '"No messages yet" with a New message button; a skeleton while loading; "Can’t load messages" with Try again offline'
+        automation: manual
+      - id: messages.inbox.long_press
+        title: Long-press a conversation to mute or delete it
+        expected: ['Mute / Unmute and Delete conversation, with a confirmation sheet']
+        automation: manual
+        note: Mutes or deletes a real conversation.
+
+  - id: messages.search
+    area: Messages
+    name: Search messages and people
+    status: ready
+    cases:
+      - id: messages.search.find
+        title: Search, see no results, Cancel
+        steps: [Tap the search bar, Type a word, Tap Cancel]
+        expected:
+          - People by username and conversations by name or last message, with the match in bold
+          - '"No results for …" when nothing matches; Cancel returns to the tabs'
+        automation: .maestro/messages/search.yaml
+        note: Only the last message of each conversation is searched.
+
+  - id: messages.new
+    area: Messages
+    name: New message and New group
+    status: ready
+    cases:
+      - id: messages.new.picker
+        title: Open New message and the group picker, then back out
+        steps: [Tap New message, Tap New group, Back, Back]
+        expected:
+          - '"To: Search people", a New group row and people you have chatted with'
+          - Group mode shows check circles and a Next button
+        automation: .maestro/messages/new_message.yaml
+      - id: messages.new.create_group
+        title: Pick people, name the group, Create group
+        expected: ['The new group opens; you are listed as Admin']
+        automation: manual
+        note: Creates a real group.
+
+  - id: messages.chat
+    area: Messages
+    name: Chat screen
+    status: ready
+    cases:
+      - id: messages.chat.composer
+        title: Attach tray and emoji panel
+        steps: [Open a chat, Tap +, Tap ✕, Tap the emoji button, Tap the keyboard button]
+        expected:
+          - The tray shows Photos, Camera, Videos and Files
+          - The emoji panel replaces the keyboard and the button turns into a keyboard icon
+        automation: .maestro/messages/chat_composer.yaml
+      - id: messages.chat.thread
+        title: Bubbles, days and read receipts
+        expected:
+          - Mine on the right in red, theirs on the left in grey; day chips between days
+          - A time under each run of messages; "Read" on the last one the other person read (1:1 only)
+          - In groups, the sender's name above and avatar beside their run of messages
+        automation: manual
+      - id: messages.chat.message_menu
+        title: Long-press a message
+        expected:
+          - 'Mine: Reply, Copy, Edit (first 15 minutes), Delete → Delete for everyone / Delete for me'
+          - 'Theirs: Reply, Copy, View profile, Report'
+        automation: manual
+        note: Maestro can't long-press reliably on the lifted message; also sends real edits and deletes.
+
+  - id: messages.attachments
+    area: Messages
+    name: Send photos, videos and files
+    status: ready
+    cases:
+      - id: messages.attachments.send
+        title: Pick photos or a file, add a caption, send
+        expected:
+          - Picked items wait above the message box with ✕ to remove them
+          - While sending, each photo shows a progress ring and "Sending… 45%" underneath
+        automation: manual
+        note: Needs the photo library and sends a real message. Files go to the public mint-media bucket until a private chat bucket exists.
+      - id: messages.attachments.retry
+        title: Send with Airplane mode on, then Retry
+        expected:
+          - '"Not sent" with "No internet connection. Tap Retry when you’re back online."'
+          - Retry sends once back online without re-uploading finished files; Remove drops it
+        automation: manual
+      - id: messages.attachments.logic
+        title: Upload progress, failure, retry and remove
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
+
+  - id: messages.info
+    area: Messages
+    name: Chat info and group info
+    status: ready
+    cases:
+      - id: messages.info.direct
+        title: Open chat info and the mute choices
+        steps: [Open a 1:1 chat, Tap the info button, Tap Mute, Tap outside]
+        expected:
+          - Profile / Mute / Media buttons, shared photos, Report and Delete conversation
+          - Mute offers 1 hour, 8 hours, 1 week or until turned back on
+        automation: .maestro/messages/chat_info.yaml
+      - id: messages.info.group
+        title: Group info for an admin
+        expected:
+          - Edit (rename), Add people, members with Admin marked, tap a member for View profile / Message / Remove
+          - Leave group with a confirmation sheet
+        automation: manual
+        note: Needs a group; renaming, adding, removing and leaving change real data.
+      - id: messages.info.shared_media
+        title: See all photos, videos and files
+        expected: ['Media grid and Files list; tap a photo to open it full screen']
+        automation: manual
+
   - id: unit.create_post
     area: Domain
     name: CreatePost use case
@@ -646,3 +775,13 @@ features:
         title: Every word must match, ignoring case
         automation: unit
         test: test/features/profile/profile_search_test.dart
+
+  - id: unit.messaging
+    area: Messages
+    name: Messaging logic
+    status: ready
+    cases:
+      - id: unit.messaging.rules
+        title: Inbox search, previews, attachment size, upload limits, footer, send / retry / remove
+        automation: unit
+        test: test/features/messaging/messaging_test.dart

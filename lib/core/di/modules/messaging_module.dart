@@ -18,7 +18,7 @@ void registerMessagingModule(GetIt sl) {
     ..registerLazySingleton<MessagingRemoteDataSource>(
         () => MessagingRemoteDataSourceImpl(sl()))
     ..registerLazySingleton<MessagingRepository>(
-        () => MessagingRepositoryImpl(sl(), sl()))
+        () => MessagingRepositoryImpl(sl(), sl(), currentUserId: currentUserId))
 
     // Use cases
     ..registerLazySingleton(() => GetInbox(sl()))
@@ -34,6 +34,7 @@ void registerMessagingModule(GetIt sl) {
     ..registerLazySingleton(() => DeleteConversation(sl()))
     ..registerLazySingleton(() => SetConversationMuted(sl()))
     ..registerLazySingleton(() => SendMessage(sl()))
+    ..registerLazySingleton(() => UploadMessageAttachment(sl()))
     ..registerLazySingleton(() => EditMessage(sl()))
     ..registerLazySingleton(() => DeleteMessage(sl()))
     ..registerLazySingleton(() => MarkConversationRead(sl()))
@@ -68,6 +69,7 @@ void registerMessagingModule(GetIt sl) {
         setMuted: sl(),
         updateGroup: sl(),
         removeMember: sl(),
+        uploadAttachment: sl(),
       ),
     )
 

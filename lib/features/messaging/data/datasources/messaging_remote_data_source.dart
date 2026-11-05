@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/env.dart';
 import '../../../../core/constants/db_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/network/rpc_runner.dart';
@@ -39,6 +43,12 @@ abstract interface class MessagingRemoteDataSource {
   Future<void> markRead(String conversationId, {int? messageId});
   Future<void> setMuted(String conversationId, DateTime? until);
 
+  /// Uploads into the sender's own storage folder; returns the public URL.
+  /// [onProgress] gets the share of bytes sent so far (0–1).
+  Future<String> uploadAttachment(
+      Uint8List bytes, String path, String? contentType,
+      {void Function(double sent)? onProgress});
+
   Stream<ConversationEvent> watchConversation(String conversationId);
   Stream<void> watchInbox(String userId);
 }
@@ -46,6 +56,74 @@ abstract interface class MessagingRemoteDataSource {
 class MessagingRemoteDataSourceImpl implements MessagingRemoteDataSource {
   MessagingRemoteDataSourceImpl(this._service);
   final SupabaseService _service;
+
+  @override
+  Future<String> uploadAttachment(
+      Uint8List bytes, String path, String? contentType,
+      {void Function(double sent)? onProgress}) async {
+    final bucket = _service.storage.from(StorageBuckets.mintMedia);
+    try {
+      // A signed upload URL lets us stream the body ourselves and count the
+      // bytes as the connection takes them; uploadBinary can't report that.
+      final signed = await bucket.createSignedUploadUrl(path);
+      final request =
+          _ProgressRequest(Uri.parse(signed.signedUrl), bytes, onProgress)
+            ..headers.addAll({
+              'apikey': Env.supabasePublishableKey,
+              'content-type': contentType ?? 'application/octet-stream',
+              'cache-control': 'max-age=3600',
+              'x-upsert': 'false',
+            });
+      final client = http.Client();
+      try {
+        final response = await client.send(request);
+        final body = await response.stream.bytesToString();
+        if (response.statusCode >= 300) {
+          throw ex.ServerException(_uploadError(response.statusCode, body),
+              code: '${response.statusCode}');
+        }
+      } finally {
+        client.close();
+      }
+      return bucket.getPublicUrl(path);
+    } on StorageException catch (e) {
+      throw ex.ServerException(
+          _isOffline(e.message) ? _offline : e.message,
+          code: e.statusCode);
+    } on http.ClientException catch (e) {
+      throw ex.ServerException(_isOffline(e.message)
+          ? _offline
+          : 'Upload failed. Check your connection and try again.');
+    }
+  }
+
+  static const _offline =
+      'No internet connection. Tap Retry when you’re back online.';
+
+  /// DNS and socket errors read like "Failed host lookup: '…supabase.co'";
+  /// show people what it means instead.
+  static bool _isOffline(String message) {
+    final m = message.toLowerCase();
+    return m.contains('host lookup') ||
+        m.contains('socketexception') ||
+        m.contains('network is unreachable') ||
+        m.contains('connection closed') ||
+        m.contains('connection reset') ||
+        m.contains('connection refused') ||
+        m.contains('timed out') ||
+        m.contains('offline');
+  }
+
+  static String _uploadError(int status, String body) {
+    final text = body.toLowerCase();
+    if (status == 413 || text.contains('maximum allowed size')) {
+      return 'This file is too big to send.';
+    }
+    if (text.contains('mime type') || text.contains('not supported')) {
+      return 'This type of file can’t be sent.';
+    }
+    return 'Upload failed. Check your connection and try again.';
+  }
 
   String _uniqueTopic(String base) =>
       '$base:${DateTime.now().microsecondsSinceEpoch}';
@@ -278,5 +356,37 @@ class MessagingRemoteDataSourceImpl implements MessagingRemoteDataSource {
       await controller.close();
     };
     return controller.stream;
+  }
+}
+
+/// A PUT whose body is handed over in 64 KB pieces. The connection pulls each
+/// piece only when it has room, so counting them gives real upload progress.
+class _ProgressRequest extends http.BaseRequest {
+  _ProgressRequest(Uri url, this._bytes, this._onProgress) : super('PUT', url);
+
+  final Uint8List _bytes;
+  final void Function(double sent)? _onProgress;
+
+  static const _chunk = 64 * 1024;
+
+  @override
+  http.ByteStream finalize() {
+    super.finalize();
+    return http.ByteStream(_pieces());
+  }
+
+  @override
+  int? get contentLength => _bytes.length;
+
+  @override
+  set contentLength(int? value) {}
+
+  Stream<List<int>> _pieces() async* {
+    final total = _bytes.length;
+    for (var start = 0; start < total; start += _chunk) {
+      final end = start + _chunk < total ? start + _chunk : total;
+      yield Uint8List.sublistView(_bytes, start, end);
+      _onProgress?.call(end / total);
+    }
   }
 }

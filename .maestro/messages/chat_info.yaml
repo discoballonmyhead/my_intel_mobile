@@ -1,0 +1,25 @@
+# test_plan: messages.info
+# Needs at least one 1:1 conversation. Opens chat info and the mute choices
+# without picking one.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- extendedWaitUntil:
+    visible:
+      id: "inbox-row"
+    timeout: 15000
+- tapOn:
+    id: "inbox-row"
+    index: 0
+- tapOn: "Chat info"
+- assertVisible: "Delete conversation"
+- tapOn: "(?s)Mute.*"
+- assertVisible: "Mute notifications"
+- assertVisible: "For 8 hours"
+- tapOn:
+    point: "50%,15%"
+- assertVisible: "Delete conversation"
+- tapOn: "Back"

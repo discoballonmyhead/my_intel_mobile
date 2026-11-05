@@ -262,6 +262,10 @@ class _VideoTileState extends State<_VideoTile> {
   }
 }
 
+/// Plays a video full screen, the same way a post's video opens.
+Future<void> showVideoPlayer(BuildContext context, String url) =>
+    showDialog<void>(context: context, builder: (_) => _VideoDialog(url: url));
+
 class _VideoDialog extends StatefulWidget {
   const _VideoDialog({required this.url});
 

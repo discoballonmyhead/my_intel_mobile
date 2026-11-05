@@ -1,24 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/error/failures.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_dialogs.dart';
-import '../../../../core/widgets/app_error_view.dart';
-import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../../profile/presentation/widgets/profile_ui.dart';
 import '../../domain/entities/message.dart';
 import '../cubits/chat_cubit.dart';
 import '../cubits/inbox_cubit.dart';
 import '../widgets/chat_composer.dart';
-import '../widgets/conversation_info_sheet.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/messaging_ui.dart';
+import 'conversation_info_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -60,89 +60,116 @@ class _ChatPageState extends State<ChatPage> {
     if (ok && mounted) _controller.clear();
   }
 
-  Future<void> _onMessageLongPress(Message message) async {
-    final cubit = context.read<ChatCubit>();
-    final myId = cubit.state.myUserId;
-    final mine = message.isMine(myId);
+  void _sendFiles(List<PickedChatFile> files) {
+    final text = _controller.text;
+    _controller.clear();
+    unawaited(context.read<ChatCubit>().sendFiles(files, text));
+  }
 
-    final action = await showModalBottomSheet<String>(
+  void _openInfo() {
+    final cubit = context.read<ChatCubit>();
+    unawaited(Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BlocProvider.value(
+        value: cubit,
+        child: const ConversationInfoPage(),
+      ),
+    )));
+  }
+
+  Future<void> _onLongPress(Message message, Rect rect) async {
+    final cubit = context.read<ChatCubit>();
+    final state = cubit.state;
+    final myId = state.myUserId;
+    final mine = message.isMine(myId);
+    final hasText = (message.body ?? '').trim().isNotEmpty;
+
+    final items = <(String, IconData, bool)>[
+      if (!message.isDeleted) ('Reply', Icons.reply_rounded, false),
+      if (hasText && !message.isDeleted)
+        ('Copy', Icons.content_copy_rounded, false),
+      if (message.canEdit(myId) && hasText) ('Edit', Icons.edit_rounded, false),
+      if (!mine && message.senderId != null && !message.isDeleted)
+        ('View profile', Icons.person_outline_rounded, false),
+      if (mine || message.isDeleted)
+        ('Delete', Icons.delete_outline_rounded, true)
+      else if (message.senderId != null)
+        ('Report', Icons.flag_outlined, true),
+    ];
+    unawaited(HapticFeedback.mediumImpact());
+    final choice = await showGeneralDialog<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!message.isDeleted)
-              ListTile(
-                leading: const Icon(Icons.reply_rounded),
-                title: const Text('Reply'),
-                onTap: () => Navigator.of(context).pop('reply'),
-              ),
-            if ((message.body ?? '').isNotEmpty && !message.isDeleted)
-              ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: const Text('Copy text'),
-                onTap: () => Navigator.of(context).pop('copy'),
-              ),
-            if (message.canEdit(myId))
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Edit'),
-                onTap: () => Navigator.of(context).pop('edit'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.visibility_off_outlined),
-              title: const Text('Delete for me'),
-              onTap: () => Navigator.of(context).pop('delete_me'),
-            ),
-            if (message.canDeleteForEveryone(myId))
-              ListTile(
-                leading: Icon(Icons.delete_forever_outlined,
-                    color: context.palette.accent2),
-                title: const Text('Delete for everyone'),
-                onTap: () => Navigator.of(context).pop('delete_all'),
-              ),
-            if (!mine && !message.isDeleted && message.senderId != null)
-              ListTile(
-                leading: Icon(Icons.flag_outlined, color: context.palette.warn),
-                title: const Text('Report message'),
-                onTap: () => Navigator.of(context).pop('report'),
-              ),
-          ],
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      transitionDuration: const Duration(milliseconds: 140),
+      pageBuilder: (dialogContext, _, __) => _MessageMenu(
+        rect: rect,
+        alignRight: mine,
+        preview: BlocProvider.value(
+          value: cubit,
+          child: _bubbleFor(cubit.state, message, interactive: false),
         ),
+        items: items,
       ),
     );
-    if (!mounted || action == null) return;
+    if (!mounted || choice == null) return;
 
-    switch (action) {
-      case 'reply':
+    switch (choice) {
+      case 'Reply':
         cubit.startReply(message);
-      case 'copy':
+      case 'Copy':
         await Clipboard.setData(ClipboardData(text: message.body ?? ''));
         if (mounted) AppDialogs.snack(context, 'Copied.');
-      case 'edit':
+      case 'Edit':
         _controller.text = message.body ?? '';
         cubit.startEdit(message);
-      case 'delete_me':
-        await cubit.deleteMessage(message, forEveryone: false);
-      case 'delete_all':
-        {
-          final ok = await AppDialogs.confirm(
-            context,
-            title: 'Delete for everyone?',
-            message: 'Everyone in this conversation will see "Message deleted".',
-            confirmLabel: 'DELETE',
-            destructive: true,
-          );
-          if (ok) await cubit.deleteMessage(message, forEveryone: true);
-        }
-      case 'report':
+      case 'View profile':
+        final name = state.senderName(message.senderId);
+        unawaited(context.push(AppRoutes.channelFor(name)));
+      case 'Report':
         await ReportSheet.show(
           context,
           targetType: ReportTargetType.message,
           targetId: '${message.id}',
         );
+      case 'Delete':
+        final forEveryone = message.canDeleteForEveryone(myId);
+        final pick = await showConfirmSheet(
+          context,
+          title: 'Delete message?',
+          body: forEveryone
+              ? 'Delete it just for you, or for everyone in this chat.'
+              : 'It’s removed for you only.',
+          actions: [
+            if (forEveryone)
+              const SheetAction('Delete for everyone', destructive: true),
+            SheetAction('Delete for me', destructive: !forEveryone),
+          ],
+        );
+        if (pick == null) return;
+        await cubit.deleteMessage(message,
+            forEveryone: forEveryone && pick == 0);
     }
+  }
+
+  Widget _bubbleFor(ChatState state, Message message,
+      {bool interactive = true, String? footer, bool showSender = false,
+      bool showAvatar = false}) {
+    final isGroup = state.conversation?.isGroup ?? false;
+    final replyTo = state.messageById(message.replyToId);
+    return MessageBubble(
+      key: interactive ? ValueKey(message.id) : null,
+      message: message,
+      isMine: message.isMine(state.myUserId),
+      senderName: isGroup ? state.senderName(message.senderId) : null,
+      showSender: showSender,
+      showAvatar: showAvatar || !interactive,
+      replyTo: replyTo,
+      replySenderName:
+          replyTo == null ? null : state.senderName(replyTo.senderId),
+      footer: footer,
+      onLongPress: interactive ? (rect) => _onLongPress(message, rect) : null,
+    );
   }
 
   @override
@@ -154,6 +181,7 @@ class _ChatPageState extends State<ChatPage> {
       listener: (context, state) {
         if (state.isClosedForMe) {
           context.read<InboxCubit>().refresh();
+          Navigator.of(context).popUntil((r) => r is! MaterialPageRoute);
           if (context.canPop()) {
             context.pop();
           } else {
@@ -170,71 +198,38 @@ class _ChatPageState extends State<ChatPage> {
       builder: (context, state) {
         final cubit = context.read<ChatCubit>();
         final conversation = state.conversation;
-
+        final isGroup = conversation?.isGroup ?? false;
         return Scaffold(
-          appBar: AppBar(
-            titleSpacing: 0,
-            title: conversation == null
-                ? const Text('')
-                : InkWell(
-                    onTap: () => ConversationInfoSheet.show(context),
-                    child: Row(
-                      children: [
-                        UserAvatar(
-                          name: state.title,
-                          radius: 16,
-                          icon: conversation.isGroup
-                              ? Icons.groups_2_outlined
-                              : state.recipientGone
-                                  ? Icons.person_off_outlined
-                                  : null,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            state.title,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (conversation.isMuted) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          Icon(Icons.notifications_off_outlined,
-                              size: 14, color: context.palette.muted),
-                        ],
-                      ],
-                    ),
-                  ),
-            actions: [
-              if (conversation != null)
-                IconButton(
-                  icon: const Icon(Icons.info_outline_rounded),
-                  onPressed: () => ConversationInfoSheet.show(context),
-                ),
-            ],
-          ),
+          appBar: _ChatHeader(state: state, onInfo: _openInfo),
           body: switch (state.status) {
-            ChatStatus.loading => const AppLoader(),
-            ChatStatus.error => AppErrorView(
-                failure: state.failure ?? const UnexpectedFailure(),
-                onRetry: cubit.load,
+            ChatStatus.loading => const Center(
+                child: SizedBox.square(
+                    dimension: 26,
+                    child: CircularProgressIndicator(strokeWidth: 2.5))),
+            ChatStatus.error => Center(
+                child: SoftMessage(
+                  icon: Icons.wifi_off_rounded,
+                  title: 'Can’t load this chat',
+                  body: state.failure?.message ??
+                      'Check your connection and try again.',
+                  action: 'Try again',
+                  onAction: cubit.load,
+                ),
               ),
             ChatStatus.ready => Column(
                 children: [
                   Expanded(
-                    child: state.messages.isEmpty
-                        ? const AppEmptyView(
-                            message: 'Say hello',
-                            icon: Icons.waving_hand_outlined,
-                          )
-                        : _MessageList(
-                            state: state,
-                            scroll: _scroll,
-                            onLongPress: _onMessageLongPress,
-                          ),
+                    child: GestureDetector(
+                      onTap: () => FocusScope.of(context).unfocus(),
+                      child: state.messages.isEmpty && state.outgoing.isEmpty
+                          ? _NewConversation(state: state)
+                          : _thread(state),
+                    ),
                   ),
                   ChatComposer(
                     controller: _controller,
-                    onSubmit: _submit,
+                    onSend: _submit,
+                    onSendFiles: _sendFiles,
                     isSending: state.isSending,
                     replyTo: state.replyTo,
                     replySenderName: state.replyTo == null
@@ -248,6 +243,7 @@ class _ChatPageState extends State<ChatPage> {
                     },
                     enabled: !state.recipientGone,
                     disabledHint: 'This account no longer exists',
+                    hint: isGroup ? 'Message the group' : 'Message',
                   ),
                 ],
               ),
@@ -256,59 +252,314 @@ class _ChatPageState extends State<ChatPage> {
       },
     );
   }
-}
 
-class _MessageList extends StatelessWidget {
-  const _MessageList({
-    required this.state,
-    required this.scroll,
-    required this.onLongPress,
-  });
-
-  final ChatState state;
-  final ScrollController scroll;
-  final ValueChanged<Message> onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _thread(ChatState state) {
+    final messages = state.messages;
+    final outgoing = state.outgoing.reversed.toList();
     final isGroup = state.conversation?.isGroup ?? false;
     final seenUpTo = isGroup ? null : state.seenByOthersUpTo;
-    // Only the newest of my messages that the other side has read gets a tick.
     final lastSeenMine = seenUpTo == null
         ? null
-        : state.messages
+        : messages
             .where((m) => m.isMine(state.myUserId) && m.id <= seenUpTo)
             .map((m) => m.id)
             .fold<int?>(null, (a, b) => a == null || b > a ? b : a);
 
+    bool sameDay(DateTime a, DateTime b) {
+      final x = a.toLocal(), y = b.toLocal();
+      return x.year == y.year && x.month == y.month && x.day == y.day;
+    }
+
+    bool sameRun(Message a, Message? b) =>
+        b != null &&
+        !b.isSystem &&
+        !a.isSystem &&
+        a.senderId == b.senderId &&
+        sameDay(a.createdAt, b.createdAt);
+
     return ListView.builder(
-      controller: scroll,
+      controller: _scroll,
       reverse: true,
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-      itemCount: state.messages.length + (state.isLoadingMore ? 1 : 0),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      itemCount:
+          outgoing.length + messages.length + (state.isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index >= state.messages.length) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: AppLoader(),
+        if (index < outgoing.length) {
+          final o = outgoing[index];
+          final cubit = context.read<ChatCubit>();
+          return OutgoingBubble(
+            key: ValueKey('out-${o.localId}'),
+            outgoing: o,
+            onRetry: () => unawaited(cubit.retryOutgoing(o.localId)),
+            onRemove: () => cubit.removeOutgoing(o.localId),
           );
         }
-        final message = state.messages[index];
-        final mine = message.isMine(state.myUserId);
-        final replyTo = state.messageById(message.replyToId);
-        return MessageBubble(
-          key: ValueKey(message.id),
-          message: message,
-          isMine: mine,
-          senderName: isGroup ? state.senderName(message.senderId) : null,
-          replyTo: replyTo,
-          replySenderName:
-              replyTo == null ? null : state.senderName(replyTo.senderId),
-          showSeen: mine && message.id == lastSeenMine,
-          onLongPress: () => onLongPress(message),
+        final i = index - outgoing.length;
+        if (i >= messages.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+                child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        final m = messages[i];
+        final newer = i > 0 ? messages[i - 1] : null;
+        final older = i + 1 < messages.length ? messages[i + 1] : null;
+        final runEnd = !sameRun(m, newer);
+        final runStart = !sameRun(m, older);
+        String? footer;
+        if (runEnd && !m.isSystem && !m.isDeleted) {
+          footer = messageFooter(m,
+              prefix: m.id == lastSeenMine ? 'Read' : null);
+        } else if (m.isEdited) {
+          footer = 'Edited';
+        }
+        final bubble = _bubbleFor(state, m,
+            footer: footer, showSender: runStart, showAvatar: runEnd);
+        final showDay = older == null || !sameDay(m.createdAt, older.createdAt);
+        if (!showDay) return bubble;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [DayChip(day: m.createdAt.toLocal()), bubble],
         );
       },
+    );
+  }
+}
+
+/// Back, avatar, name with role or member count, and the info button.
+class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
+  const _ChatHeader({required this.state, required this.onInfo});
+
+  final ChatState state;
+  final VoidCallback onInfo;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(60);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final conversation = state.conversation;
+    final isGroup = conversation?.isGroup ?? false;
+    final other = conversation?.other(state.myUserId);
+    final subtitle = conversation == null
+        ? null
+        : isGroup
+            ? '${conversation.participants.length} members'
+            : other?.profile?.role.displayName;
+    final names = conversation?.participants
+            .where((p) => p.userId != state.myUserId)
+            .map((p) => p.displayName)
+            .toList() ??
+        const <String>[];
+
+    return AppBar(
+      titleSpacing: 0,
+      leading: IconButton(
+        tooltip: 'Back',
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 22),
+        onPressed: () => Navigator.of(context).maybePop(),
+      ),
+      shape: Border(
+          bottom: BorderSide(color: palette.border.withValues(alpha: 0.6))),
+      title: conversation == null
+          ? null
+          : InkWell(
+              onTap: onInfo,
+              child: Row(
+                children: [
+                  if (isGroup)
+                    GroupAvatar(names: names, size: 40)
+                  else
+                    UserAvatar(
+                      name: state.title,
+                      radius: 19,
+                      icon: state.recipientGone
+                          ? Icons.person_off_outlined
+                          : null,
+                    ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(state.title,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: inter(16,
+                                      weight: FontWeight.w600,
+                                      color: onSurface)),
+                            ),
+                            if (conversation.isMuted) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.notifications_off_outlined,
+                                  size: 15, color: palette.muted),
+                            ],
+                          ],
+                        ),
+                        if (subtitle != null)
+                          Text(subtitle,
+                              style: inter(13, color: palette.muted)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      actions: [
+        if (conversation != null)
+          IconButton(
+            tooltip: isGroup ? 'Group info' : 'Chat info',
+            icon: Icon(Icons.info_outline_rounded, color: palette.muted),
+            onPressed: onInfo,
+          ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+}
+
+/// A chat with no messages yet: who you're talking to and "Say hi".
+class _NewConversation extends StatelessWidget {
+  const _NewConversation({required this.state});
+
+  final ChatState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final other = state.conversation?.other(state.myUserId);
+    final isGroup = state.conversation?.isGroup ?? false;
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      children: [
+        const SizedBox(height: 90),
+        Center(child: UserAvatar(name: state.title, radius: 40)),
+        const SizedBox(height: 14),
+        Text(state.title,
+            textAlign: TextAlign.center,
+            style: inter(19, weight: FontWeight.w600, color: onSurface)),
+        if (!isGroup && other?.profile != null) ...[
+          const SizedBox(height: 4),
+          Text(other!.profile!.role.displayName,
+              textAlign: TextAlign.center,
+              style: inter(14, color: palette.muted)),
+          const SizedBox(height: 16),
+          Center(
+            child: PillButton(
+              label: 'View profile',
+              soft: true,
+              width: 140,
+              height: 40,
+              onPressed: () =>
+                  context.push(AppRoutes.channelFor(other.displayName)),
+            ),
+          ),
+        ],
+        const SizedBox(height: 120),
+        Text('Say hi 👋',
+            textAlign: TextAlign.center,
+            style: inter(14, color: palette.muted)),
+      ],
+    );
+  }
+}
+
+/// The long-pressed message, lifted above a dimmed chat, with its actions
+/// just below (or above, near the bottom of the screen).
+class _MessageMenu extends StatelessWidget {
+  const _MessageMenu({
+    required this.rect,
+    required this.alignRight,
+    required this.preview,
+    required this.items,
+  });
+
+  final Rect rect;
+  final bool alignRight;
+  final Widget preview;
+  final List<(String, IconData, bool)> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final size = MediaQuery.sizeOf(context);
+    const menuWidth = 230.0;
+    final menuHeight = items.length * 48.0;
+    final below = rect.bottom + 8 + menuHeight < size.height - 40;
+    final menuTop = below ? rect.bottom + 8 : rect.top - 8 - menuHeight;
+    final menuLeft = alignRight
+        ? (rect.right - menuWidth).clamp(12.0, size.width - menuWidth - 12)
+        : rect.left.clamp(12.0, size.width - menuWidth - 12);
+
+    return Stack(
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: rect.top - 3,
+          child: IgnorePointer(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Material(type: MaterialType.transparency, child: preview),
+            ),
+          ),
+        ),
+        Positioned(
+          left: menuLeft.toDouble(),
+          top: menuTop.clamp(40.0, size.height - menuHeight - 20),
+          width: menuWidth,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            elevation: 6,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0)
+                    Divider(
+                        height: 1,
+                        indent: 16,
+                        color: palette.border.withValues(alpha: 0.6)),
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(items[i].$1),
+                    child: SizedBox(
+                      height: 47,
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 16),
+                          Icon(items[i].$2,
+                              size: 21,
+                              color: items[i].$3 ? palette.accent : onSurface),
+                          const SizedBox(width: 14),
+                          Text(items[i].$1,
+                              style: inter(15.5,
+                                  color: items[i].$3
+                                      ? palette.accent
+                                      : onSurface)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -5,13 +5,15 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
 
 class MessageAttachmentModel extends MessageAttachment {
-  const MessageAttachmentModel({required super.url, super.type, super.name});
+  const MessageAttachmentModel(
+      {required super.url, super.type, super.name, super.size});
 
   factory MessageAttachmentModel.fromJson(Map<String, dynamic> json) {
     return MessageAttachmentModel(
       url: (json['url'] as String?) ?? '',
       type: (json['type'] as String?) ?? 'file',
       name: json['name'] as String?,
+      size: (json['size'] as num?)?.toInt(),
     );
   }
 }

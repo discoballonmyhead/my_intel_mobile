@@ -222,6 +222,57 @@ class SendMessage implements UseCase<Message, SendMessageParams> {
   }
 }
 
+class UploadAttachmentParams {
+  const UploadAttachmentParams({
+    required this.bytes,
+    required this.type,
+    required this.fileName,
+    this.contentType,
+    this.onProgress,
+  });
+  final List<int> bytes;
+
+  /// 'image' | 'video' | 'file'
+  final String type;
+  final String fileName;
+  final String? contentType;
+
+  /// Share of the file sent so far (0–1).
+  final void Function(double sent)? onProgress;
+}
+
+/// Same size limits as post attachments.
+class UploadMessageAttachment
+    implements UseCase<MessageAttachment, UploadAttachmentParams> {
+  const UploadMessageAttachment(this._repository);
+  final MessagingRepository _repository;
+
+  static const _mb = 1024 * 1024;
+  static int maxBytesFor(String type) => switch (type) {
+        'image' => 10 * _mb,
+        'video' => 100 * _mb,
+        _ => 20 * _mb,
+      };
+
+  @override
+  Future<Result<MessageAttachment>> call(UploadAttachmentParams params) async {
+    if (params.bytes.isEmpty) {
+      return const Err(ValidationFailure('That file is empty.'));
+    }
+    if (params.bytes.length > maxBytesFor(params.type)) {
+      return Err(ValidationFailure(
+          'Files like this can be up to ${maxBytesFor(params.type) ~/ _mb} MB.'));
+    }
+    return _repository.uploadAttachment(
+      bytes: params.bytes,
+      type: params.type,
+      fileName: params.fileName,
+      contentType: params.contentType,
+      onProgress: params.onProgress,
+    );
+  }
+}
+
 class EditMessageParams {
   const EditMessageParams({required this.message, required this.body});
   final Message message;

@@ -1,0 +1,26 @@
+# test_plan: messages.chat
+# Needs at least one conversation. Opens the tray and emoji panel; sends nothing.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- extendedWaitUntil:
+    visible:
+      id: "inbox-row"
+    timeout: 15000
+- tapOn:
+    id: "inbox-row"
+    index: 0
+- assertVisible: "(?s)Message.*"
+- tapOn: "Attach"
+- assertVisible: "Photos"
+- assertVisible: "Camera"
+- assertVisible: "Videos"
+- assertVisible: "Files"
+- tapOn: "Close"
+- tapOn: "Emoji"
+- assertVisible: "Keyboard"
+- tapOn: "Keyboard"
+- tapOn: "Back"

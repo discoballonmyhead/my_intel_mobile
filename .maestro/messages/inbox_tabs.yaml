@@ -1,0 +1,12 @@
+# test_plan: messages.inbox
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- assertVisible: "Search messages and people"
+- tapOn: "(?s)Groups.*"
+- assertVisible: "New group"
+- tapOn: "(?s)Chats.*"
+- assertVisible: "Search messages and people"

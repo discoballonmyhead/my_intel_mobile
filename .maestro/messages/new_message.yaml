@@ -1,0 +1,17 @@
+# test_plan: messages.new
+# Opens New message and the New group picker, then backs out; creates nothing.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- tapOn: "New message"
+- assertVisible: "To: Search people"
+- tapOn: "New group"
+- assertVisible: "Next"
+- assertVisible: "Search people"
+- tapOn: "Back"
+- assertVisible: "To: Search people"
+- tapOn: "Back"
+- assertVisible: "Search messages and people"

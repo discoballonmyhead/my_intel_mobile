@@ -13,7 +13,12 @@ class MessagingPolicy {
 enum MessageKind { text, system }
 
 class MessageAttachment extends Equatable {
-  const MessageAttachment({required this.url, this.type = 'file', this.name});
+  const MessageAttachment({
+    required this.url,
+    this.type = 'file',
+    this.name,
+    this.size,
+  });
 
   final String url;
 
@@ -21,16 +26,21 @@ class MessageAttachment extends Equatable {
   final String type;
   final String? name;
 
+  /// Bytes, when the sender's app recorded it.
+  final int? size;
+
   bool get isImage => type == 'image';
+  bool get isVideo => type == 'video';
 
   Map<String, dynamic> toJson() => {
         'url': url,
         'type': type,
         if (name != null) 'name': name,
+        if (size != null) 'size': size,
       };
 
   @override
-  List<Object?> get props => [url, type, name];
+  List<Object?> get props => [url, type, name, size];
 }
 
 /// A row of `messaging.messages`.
@@ -87,7 +97,11 @@ class Message extends Equatable {
     final text = body?.trim() ?? '';
     if (text.isNotEmpty) return text;
     if (attachments.isNotEmpty) {
-      return attachments.first.isImage ? 'Photo' : 'Attachment';
+      final first = attachments.first;
+      if (first.isImage) {
+        return attachments.length > 1 ? '${attachments.length} photos' : 'Photo';
+      }
+      return first.isVideo ? 'Video' : first.name ?? 'File';
     }
     return '';
   }
