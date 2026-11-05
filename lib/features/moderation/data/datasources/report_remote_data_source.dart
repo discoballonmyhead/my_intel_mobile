@@ -13,6 +13,15 @@ abstract interface class ReportRemoteDataSource {
     required String reason,
     String? details,
   });
+  /// Encrypted message: the reporter's phone supplies the text and the
+  /// franking key, the server checks them against the stored tag.
+  Future<int> reportEncryptedMessage({
+    required int messageId,
+    required String reason,
+    required String plaintext,
+    required String frankingKey,
+    String? details,
+  });
   Future<List<Map<String, dynamic>>> myReports({int limit, int offset});
   Future<List<Map<String, dynamic>>> queue({
     required String status,
@@ -49,6 +58,25 @@ class ReportRemoteDataSourceImpl implements ReportRemoteDataSource {
           'p_target_type': targetType,
           'p_target_id': targetId,
           'p_reason': reason,
+          'p_details': details,
+        });
+        return asInt(res) ?? 0;
+      });
+
+  @override
+  Future<int> reportEncryptedMessage({
+    required int messageId,
+    required String reason,
+    required String plaintext,
+    required String frankingKey,
+    String? details,
+  }) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(ReportRpc.reportMessage, params: {
+          'p_message_id': messageId,
+          'p_reason': reason,
+          'p_plaintext': plaintext,
+          'p_franking_key': frankingKey,
           'p_details': details,
         });
         return asInt(res) ?? 0;

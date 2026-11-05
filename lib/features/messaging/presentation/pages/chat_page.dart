@@ -9,6 +9,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../../profile/presentation/widgets/profile_ui.dart';
@@ -153,7 +154,9 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _bubbleFor(ChatState state, Message message,
-      {bool interactive = true, String? footer, bool showSender = false,
+      {bool interactive = true,
+      String? footer,
+      bool showSender = false,
       bool showAvatar = false}) {
     final isGroup = state.conversation?.isGroup ?? false;
     final replyTo = state.messageById(message.replyToId);
@@ -226,6 +229,15 @@ class _ChatPageState extends State<ChatPage> {
                           : _thread(state),
                     ),
                   ),
+                  if (conversation != null)
+                    EncryptionNotice(
+                      encrypted: conversation.isEncrypted,
+                      waitingFor: [
+                        for (final p
+                            in conversation.membersWithoutKeys(state.myUserId))
+                          p.displayName,
+                      ],
+                    ),
                   ChatComposer(
                     controller: _controller,
                     onSend: _submit,
@@ -312,8 +324,8 @@ class _ChatPageState extends State<ChatPage> {
         final runStart = !sameRun(m, older);
         String? footer;
         if (runEnd && !m.isSystem && !m.isDeleted) {
-          footer = messageFooter(m,
-              prefix: m.id == lastSeenMine ? 'Read' : null);
+          footer =
+              messageFooter(m, prefix: m.id == lastSeenMine ? 'Read' : null);
         } else if (m.isEdited) {
           footer = 'Edited';
         }

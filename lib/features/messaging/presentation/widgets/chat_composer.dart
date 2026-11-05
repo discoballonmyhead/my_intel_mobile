@@ -6,7 +6,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../feed/presentation/widgets/composer_emoji_panel.dart';
-import '../../../feed/presentation/widgets/post_attachments.dart' show formatBytes;
+import '../../../feed/presentation/widgets/post_attachments.dart'
+    show formatBytes;
 import '../../../profile/presentation/widgets/profile_ui.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/usecases/messaging_usecases.dart';
@@ -99,8 +100,8 @@ class _ChatComposerState extends State<ChatComposer> {
     if (_picked.length >= _maxFiles) return;
     if (bytes.length > UploadMessageAttachment.maxBytesFor(type)) {
       final mb = UploadMessageAttachment.maxBytesFor(type) ~/ (1024 * 1024);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('That file is over $mb MB.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('That file is over $mb MB.')));
       return;
     }
     setState(() => _picked.add(PickedChatFile(

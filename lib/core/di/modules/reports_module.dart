@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 
+import '../../../features/e2ee/domain/message_crypto.dart';
 import '../../../features/moderation/data/datasources/report_remote_data_source.dart';
 import '../../../features/moderation/data/repositories/report_repository_impl.dart';
 import '../../../features/moderation/domain/entities/report.dart';
@@ -15,8 +16,8 @@ void registerReportsModule(GetIt sl) {
   sl
     ..registerLazySingleton<ReportRemoteDataSource>(
         () => ReportRemoteDataSourceImpl(sl()))
-    ..registerLazySingleton<ReportRepository>(
-        () => ReportRepositoryImpl(sl(), sl()))
+    ..registerLazySingleton<ReportRepository>(() =>
+        ReportRepositoryImpl(sl(), sl(), evidence: sl<MessageEvidenceSource>()))
     ..registerLazySingleton(() => SubmitReport(sl()))
     ..registerLazySingleton(() => GetMyReports(sl()))
     ..registerLazySingleton(() => GetReportQueue(sl()))

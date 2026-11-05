@@ -244,8 +244,8 @@ class _NewConversationPageState extends State<NewConversationPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
               child: Text(query.isEmpty ? 'Suggested' : 'People',
-                  style: inter(13,
-                      weight: FontWeight.w600, color: palette.muted)),
+                  style:
+                      inter(13, weight: FontWeight.w600, color: palette.muted)),
             ),
           if (people.isEmpty && query.isNotEmpty)
             const Padding(
@@ -351,8 +351,7 @@ class _Chip extends StatelessWidget {
 }
 
 class _PersonRow extends StatelessWidget {
-  const _PersonRow(
-      {required this.profile, required this.onTap, this.selected});
+  const _PersonRow({required this.profile, required this.onTap, this.selected});
 
   final Profile profile;
   final VoidCallback onTap;
@@ -377,8 +376,8 @@ class _PersonRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(profile.username,
-                      style: inter(16,
-                          weight: FontWeight.w500, color: onSurface)),
+                      style:
+                          inter(16, weight: FontWeight.w500, color: onSurface)),
                   Text(profile.role.displayName,
                       style: inter(13, color: palette.muted)),
                 ],

@@ -56,6 +56,7 @@ import '../responsive/responsive_provider.dart';
 import '../theme/theme_provider.dart';
 import 'modules/account_module.dart';
 import 'modules/comments_module.dart';
+import 'modules/e2ee_module.dart';
 import 'modules/social_module.dart';
 import 'modules/admin_module.dart';
 import 'modules/messaging_module.dart';
@@ -249,6 +250,7 @@ class Injection {
     registerCommentsModule(sl);
     registerAccountModule(sl);
     registerPostsModule(sl);
+    registerE2eeModule(sl);
     registerMessagingModule(sl);
     registerReportsModule(sl);
     registerAdminModule(sl);

@@ -31,6 +31,7 @@ class Participant extends Equatable {
     this.joinedAt,
     this.lastReadMessageId,
     this.profile,
+    this.hasE2ee = false,
   });
 
   final String userId;
@@ -38,6 +39,9 @@ class Participant extends Equatable {
   final DateTime? joinedAt;
   final int? lastReadMessageId;
   final Profile? profile;
+
+  /// Has set up end-to-end encryption (opened an updated app).
+  final bool hasE2ee;
 
   String get displayName => profile?.username ?? 'unknown';
 
@@ -47,10 +51,12 @@ class Participant extends Equatable {
         joinedAt: joinedAt,
         lastReadMessageId: lastReadMessageId,
         profile: profile,
+        hasE2ee: hasE2ee,
       );
 
   @override
-  List<Object?> get props => [userId, role, lastReadMessageId, profile];
+  List<Object?> get props =>
+      [userId, role, lastReadMessageId, profile, hasE2ee];
 }
 
 /// Header + members for the chat screen (`msg_get_conversation`).
@@ -65,6 +71,8 @@ class Conversation extends Equatable {
     this.myRole = ParticipantRole.member,
     this.mutedUntil,
     this.participants = const [],
+    this.isEncrypted = false,
+    this.keyEpoch = 0,
   });
 
   final String id;
@@ -77,7 +85,19 @@ class Conversation extends Equatable {
   final DateTime? mutedUntil;
   final List<Participant> participants;
 
+  /// Messages are end-to-end encrypted (no plaintext accepted any more).
+  final bool isEncrypted;
+
+  /// Bumps when someone joins or leaves a group.
+  final int keyEpoch;
+
   bool get isGroup => kind == ConversationKind.group;
+
+  /// Other members who haven't set up encryption yet (old app).
+  List<Participant> membersWithoutKeys(String? myUserId) => [
+        for (final p in participants)
+          if (p.userId != myUserId && !p.hasE2ee) p
+      ];
 
   bool get isMuted =>
       mutedUntil != null && mutedUntil!.isAfter(DateTime.now().toUtc());
@@ -112,8 +132,17 @@ class Conversation extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [id, kind, title, avatarUrl, myRole, mutedUntil, participants];
+  List<Object?> get props => [
+        id,
+        kind,
+        title,
+        avatarUrl,
+        myRole,
+        mutedUntil,
+        participants,
+        isEncrypted,
+        keyEpoch
+      ];
 }
 
 /// One row of the inbox (`msg_get_inbox`).
@@ -133,6 +162,7 @@ class InboxEntry extends Equatable {
     this.unreadCount = 0,
     this.isMuted = false,
     this.myRole = ParticipantRole.member,
+    this.isEncrypted = false,
   });
 
   final String conversationId;
@@ -149,6 +179,7 @@ class InboxEntry extends Equatable {
   final int unreadCount;
   final bool isMuted;
   final ParticipantRole myRole;
+  final bool isEncrypted;
 
   bool get isGroup => kind == ConversationKind.group;
   bool get hasUnread => unreadCount > 0;
@@ -174,7 +205,9 @@ class InboxEntry extends Equatable {
         : text;
   }
 
-  InboxEntry copyWith({int? unreadCount, bool? isMuted}) => InboxEntry(
+  InboxEntry copyWith(
+          {int? unreadCount, bool? isMuted, String? lastMessageBody}) =>
+      InboxEntry(
         conversationId: conversationId,
         kind: kind,
         lastActivityAt: lastActivityAt,
@@ -183,12 +216,13 @@ class InboxEntry extends Equatable {
         otherUserId: otherUserId,
         otherProfile: otherProfile,
         lastMessageId: lastMessageId,
-        lastMessageBody: lastMessageBody,
+        lastMessageBody: lastMessageBody ?? this.lastMessageBody,
         lastMessageSenderId: lastMessageSenderId,
         lastMessageDeleted: lastMessageDeleted,
         unreadCount: unreadCount ?? this.unreadCount,
         isMuted: isMuted ?? this.isMuted,
         myRole: myRole,
+        isEncrypted: isEncrypted,
       );
 
   @override

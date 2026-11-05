@@ -53,6 +53,7 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
+    if (message.isSilentSystem) return const SizedBox.shrink();
     if (message.isSystem) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -77,6 +78,9 @@ class MessageBubble extends StatelessWidget {
                 ? 'You deleted this message'
                 : 'This message was deleted',
       );
+    } else if (!message.isReadable) {
+      // Encrypted but not readable here: show the status like a deleted one.
+      content = _DeletedPill(text: message.preview);
     } else {
       content = Column(
         crossAxisAlignment:
@@ -125,7 +129,8 @@ class MessageBubble extends StatelessWidget {
         children: [
           if (group)
             Padding(
-              padding: EdgeInsets.only(right: 8, bottom: footer == null ? 0 : 18),
+              padding:
+                  EdgeInsets.only(right: 8, bottom: footer == null ? 0 : 18),
               child: showAvatar
                   ? UserAvatar(name: senderName, radius: 15)
                   : const SizedBox(width: 30),
@@ -147,8 +152,8 @@ class MessageBubble extends StatelessWidget {
                 if (footer != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                    child: Text(footer!,
-                        style: inter(12, color: palette.muted)),
+                    child:
+                        Text(footer!, style: inter(12, color: palette.muted)),
                   ),
               ],
             ),
@@ -295,7 +300,8 @@ class OutgoingBubble extends StatelessWidget {
     final others = outgoing.files.where((f) => !f.isImage).toList();
     final value = failed ? null : outgoing.progress.clamp(0.02, 1.0).toDouble();
 
-    Widget ring({double size = 34, Color color = Colors.white}) => SizedBox.square(
+    Widget ring({double size = 34, Color color = Colors.white}) =>
+        SizedBox.square(
           dimension: size,
           child: CircularProgressIndicator(
             value: value,

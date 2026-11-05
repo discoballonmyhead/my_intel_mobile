@@ -212,7 +212,7 @@ class ChannelPage extends StatelessWidget {
                                           onTap: state.credibility == null
                                               ? null
                                               : () => CredibilityBreakdownSheet
-                                                  .show(
+                                                      .show(
                                                     context,
                                                     state.credibility!,
                                                     username: profile.username,
@@ -231,53 +231,53 @@ class ChannelPage extends StatelessWidget {
                               )
                             else
                               ...state.posts.map((p) => InkWell(
-                                  onTap: () =>
-                                      context.push(AppRoutes.postFor(p.id)),
-                                  child: Container(
-                                    padding:
-                                        const EdgeInsets.all(AppSpacing.lg),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom:
-                                            BorderSide(color: palette.border),
+                                    onTap: () =>
+                                        context.push(AppRoutes.postFor(p.id)),
+                                    child: Container(
+                                      padding:
+                                          const EdgeInsets.all(AppSpacing.lg),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom:
+                                              BorderSide(color: palette.border),
+                                        ),
                                       ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          p.isEdited
-                                              ? '${p.createdAt.timeAgo} · edited'
-                                              : p.createdAt.timeAgo,
-                                          style: AppTypography.mono(
-                                            size: 9,
-                                            color: palette.muted,
-                                          ),
-                                        ),
-                                        const SizedBox(height: AppSpacing.xs),
-                                        Text(
-                                          p.body,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium,
-                                        ),
-                                        if (p.replyCount > 0) ...[
-                                          const SizedBox(
-                                              height: AppSpacing.xs),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            '${p.replyCount} COMMENT'
-                                            '${p.replyCount == 1 ? '' : 'S'}',
+                                            p.isEdited
+                                                ? '${p.createdAt.timeAgo} · edited'
+                                                : p.createdAt.timeAgo,
                                             style: AppTypography.mono(
                                               size: 9,
                                               color: palette.muted,
                                             ),
                                           ),
+                                          const SizedBox(height: AppSpacing.xs),
+                                          Text(
+                                            p.body,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium,
+                                          ),
+                                          if (p.replyCount > 0) ...[
+                                            const SizedBox(
+                                                height: AppSpacing.xs),
+                                            Text(
+                                              '${p.replyCount} COMMENT'
+                                              '${p.replyCount == 1 ? '' : 'S'}',
+                                              style: AppTypography.mono(
+                                                size: 9,
+                                                color: palette.muted,
+                                              ),
+                                            ),
+                                          ],
                                         ],
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                )),
+                                  )),
                           ],
                         ),
                       ),

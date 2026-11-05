@@ -15,6 +15,7 @@ import '../../../../core/widgets/user_avatar.dart';
 import '../../../profile/domain/entities/profile.dart';
 import '../../../profile/domain/usecases/search_profiles.dart';
 import '../../../profile/presentation/widgets/profile_ui.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../domain/entities/conversation.dart';
 import '../cubits/inbox_cubit.dart';
 import '../widgets/messaging_ui.dart';
@@ -150,6 +151,7 @@ class _InboxPageState extends State<InboxPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (!_searching) _title(context),
+                  if (!_searching) const E2eeInboxBanner(),
                   // Keyed so the field keeps focus when the title hides.
                   KeyedSubtree(key: _searchKey, child: _searchBar(context)),
                   if (_searching)

@@ -13,6 +13,7 @@ import '../../../feed/presentation/widgets/photo_viewer.dart';
 import '../../../feed/presentation/widgets/post_attachments.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
+import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../../profile/presentation/widgets/profile_ui.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
@@ -190,8 +191,7 @@ class _MediaStrip extends StatelessWidget {
             const Expanded(child: SectionLabel('Photos, videos and files')),
             GestureDetector(
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) =>
-                      SharedMediaPage(attachments: attachments))),
+                  builder: (_) => SharedMediaPage(attachments: attachments))),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 6, 8),
                 child: Text('See all',
@@ -211,9 +211,7 @@ class _MediaStrip extends StatelessWidget {
                     aspectRatio: 1,
                     child: i < visual.length
                         ? _MediaCell(
-                            attachment: visual[i],
-                            all: attachments,
-                            radius: 12)
+                            attachment: visual[i], all: attachments, radius: 12)
                         : const SizedBox.shrink(),
                   ),
                 ),
@@ -318,6 +316,19 @@ class _DirectInfo extends StatelessWidget {
         ),
       ]),
       _MediaStrip(attachments: sharedAttachments(state.messages)),
+      const SizedBox(height: 22),
+      SettingsGroup([
+        if (other != null)
+          SettingsRow(
+            title: 'Verify security code',
+            icon: Icons.verified_user_outlined,
+            subtitle: conversation.isEncrypted
+                ? 'Messages are end-to-end encrypted'
+                : 'Encryption starts with the next message',
+            onTap: () => SafetyNumberSheet.show(context,
+                userId: other.userId, name: other.displayName),
+          ),
+      ]),
       const SizedBox(height: 22),
       SettingsGroup([
         if (other != null)
@@ -518,9 +529,8 @@ class _GroupInfo extends StatelessWidget {
               title: p.userId == state.myUserId ? 'You' : p.displayName,
               value: p.role.canManage ? 'Admin' : null,
               chevron: false,
-              onTap: p.userId == state.myUserId
-                  ? null
-                  : () => _member(context, p),
+              onTap:
+                  p.userId == state.myUserId ? null : () => _member(context, p),
             ),
         ]),
         SettingsGroup([

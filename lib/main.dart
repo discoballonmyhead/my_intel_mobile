@@ -12,6 +12,8 @@ import 'package:mint/features/search/presentation/providers/search_provider.dart
 import 'package:mint/features/stories/presentation/providers/story_provider.dart';
 import 'package:provider/provider.dart';
 
+import 'core/config/config_error_app.dart';
+import 'core/config/env.dart';
 import 'core/di/injection.dart';
 import 'core/network/supabase_bootstrap.dart';
 import 'core/responsive/responsive_scope.dart';
@@ -20,6 +22,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/account/presentation/cubits/access_cubit.dart';
 import 'features/auth/presentation/providers/auth_cubit.dart';
+import 'features/e2ee/presentation/cubits/e2ee_cubit.dart';
 import 'features/messaging/presentation/cubits/inbox_cubit.dart';
 
 Future<void> main() async {
@@ -29,6 +32,14 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // No keys are compiled into the source: they come from
+  // `--dart-define-from-file=env/dev.json`. Without them the app explains
+  // what is missing instead of crashing on the first query.
+  if (!Env.isConfigured || Env.usesServerKey) {
+    runApp(ConfigErrorApp(serverKey: Env.usesServerKey));
+    return;
+  }
 
   await SupabaseServiceBootstrap.run();
   await Injection.init();
@@ -59,6 +70,7 @@ class AppProviders extends StatelessWidget {
           BlocProvider.value(value: sl<ProfileCubit>()),
           BlocProvider.value(value: sl<AccessCubit>()),
           BlocProvider.value(value: sl<InboxCubit>()),
+          BlocProvider.value(value: sl<E2eeCubit>()),
           BlocProvider.value(value: sl<ReactionsCubit>()),
         ],
         // ── THE PROPER WAY TO SYNC CUBITS IN FLUTTER_BLOC ──
@@ -89,6 +101,8 @@ class _SessionSyncState extends State<_SessionSync> {
     context.read<AccessCubit>().syncWithUser(userId);
     context.read<InboxCubit>().syncWithUser(userId);
     context.read<ReactionsCubit>().syncWithUser(userId);
+    // encryption keys before the inbox needs them
+    context.read<E2eeCubit>().syncWithUser(userId);
   }
 
   void _sync(String? userId) {
@@ -96,6 +110,7 @@ class _SessionSyncState extends State<_SessionSync> {
     context.read<AccessCubit>().syncWithUser(userId);
     context.read<InboxCubit>().syncWithUser(userId);
     context.read<ReactionsCubit>().syncWithUser(userId);
+    context.read<E2eeCubit>().syncWithUser(userId);
     // Session-wide providers holding per-user state (liked / saved flags,
     // staff-only claims, last search) must not leak into the next account.
     sl<FeedProvider>().syncWithUser(userId);

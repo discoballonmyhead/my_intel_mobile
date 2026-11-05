@@ -11,3 +11,10 @@ env.json
 lib/core/baboinki/
 # Test coverage reports (flutter test --coverage)
 coverage/
+# --- add to the project's .gitignore ---
+env/*.json
+!env/env.example.json
+lib/core/baboinki/
+.env
+.env.*
+supabase/.temp/

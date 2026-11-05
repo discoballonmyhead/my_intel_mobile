@@ -39,6 +39,19 @@ abstract interface class MessagingRemoteDataSource {
     int? replyToId,
   });
   Future<MessageModel> edit(int messageId, String body);
+
+  /// Ciphertext + header + franking tag; the server never sees the text.
+  Future<MessageModel> sendE2ee({
+    required String conversationId,
+    required String ciphertext,
+    required Map<String, dynamic> envelope,
+    required String frankingTag,
+    int? replyToId,
+  });
+  Future<MessageModel> editE2ee(int messageId,
+      {required String ciphertext,
+      required Map<String, dynamic> envelope,
+      required String frankingTag});
   Future<void> deleteMessage(int messageId, {required bool forEveryone});
   Future<void> markRead(String conversationId, {int? messageId});
   Future<void> setMuted(String conversationId, DateTime? until);
@@ -87,8 +100,7 @@ class MessagingRemoteDataSourceImpl implements MessagingRemoteDataSource {
       }
       return bucket.getPublicUrl(path);
     } on StorageException catch (e) {
-      throw ex.ServerException(
-          _isOffline(e.message) ? _offline : e.message,
+      throw ex.ServerException(_isOffline(e.message) ? _offline : e.message,
           code: e.statusCode);
     } on http.ClientException catch (e) {
       throw ex.ServerException(_isOffline(e.message)
@@ -198,11 +210,11 @@ class MessagingRemoteDataSourceImpl implements MessagingRemoteDataSource {
   @override
   Future<int> addMembers(String conversationId, List<String> userIds) =>
       runRpc(() async {
-        final res = await _service.rpc<dynamic>(MessagingRpc.addMembers,
-            params: {
-              'p_conversation_id': conversationId,
-              'p_user_ids': userIds,
-            });
+        final res =
+            await _service.rpc<dynamic>(MessagingRpc.addMembers, params: {
+          'p_conversation_id': conversationId,
+          'p_user_ids': userIds,
+        });
         return asInt(res) ?? 0;
       });
 
@@ -248,6 +260,40 @@ class MessagingRemoteDataSourceImpl implements MessagingRemoteDataSource {
   Future<MessageModel> edit(int messageId, String body) => runRpc(() async {
         final res = await _service.rpc<dynamic>(MessagingRpc.edit,
             params: {'p_message_id': messageId, 'p_body': body});
+        return MessageModel.fromJson(asRow(res)!);
+      });
+
+  @override
+  Future<MessageModel> sendE2ee({
+    required String conversationId,
+    required String ciphertext,
+    required Map<String, dynamic> envelope,
+    required String frankingTag,
+    int? replyToId,
+  }) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(MessagingRpc.sendE2ee, params: {
+          'p_conversation_id': conversationId,
+          'p_ciphertext': ciphertext,
+          'p_envelope': envelope,
+          'p_franking_tag': frankingTag,
+          'p_reply_to_id': replyToId,
+        });
+        return MessageModel.fromJson(asRow(res)!);
+      });
+
+  @override
+  Future<MessageModel> editE2ee(int messageId,
+          {required String ciphertext,
+          required Map<String, dynamic> envelope,
+          required String frankingTag}) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>(MessagingRpc.editE2ee, params: {
+          'p_message_id': messageId,
+          'p_ciphertext': ciphertext,
+          'p_envelope': envelope,
+          'p_franking_tag': frankingTag,
+        });
         return MessageModel.fromJson(asRow(res)!);
       });
 

@@ -81,8 +81,7 @@ class OutgoingMessage extends Equatable {
       );
 
   @override
-  List<Object?> get props =>
-      [localId, files, body, uploaded, progress, error];
+  List<Object?> get props => [localId, files, body, uploaded, progress, error];
 }
 
 class ChatState extends Equatable {
@@ -236,7 +235,8 @@ class ChatCubit extends Cubit<ChatState> {
     required UpdateGroup updateGroup,
     required RemoveGroupMember removeMember,
     UploadMessageAttachment? uploadAttachment,
-  })  : _upload = uploadAttachment, _getConversation = getConversation,
+  })  : _upload = uploadAttachment,
+        _getConversation = getConversation,
         _getMessages = getMessages,
         _sendMessage = sendMessage,
         _editMessage = editMessage,
@@ -291,7 +291,8 @@ class ChatCubit extends Cubit<ChatState> {
     if (isClosed) return;
     final messages = page.valueOrNull;
     if (messages == null) {
-      emit(state.copyWith(status: ChatStatus.error, failure: page.failureOrNull));
+      emit(state.copyWith(
+          status: ChatStatus.error, failure: page.failureOrNull));
       return;
     }
 
@@ -356,6 +357,19 @@ class ChatCubit extends Cubit<ChatState> {
         _headerDebounce?.cancel();
         _headerDebounce =
             Timer(const Duration(milliseconds: 400), reloadHeader);
+      case DecryptionKeysArrived():
+        _reopenRecent();
+    }
+  }
+
+  /// Group keys arrived: messages that were waiting for them can be read now.
+  Future<void> _reopenRecent() async {
+    if (!state.messages
+        .any((m) => m.encryption == MessageEncryption.waitingForKey)) return;
+    final page = await _getMessages(GetMessagesParams(conversationId: _id));
+    if (isClosed) return;
+    for (final m in page.valueOrNull ?? const <Message>[]) {
+      _upsert(m);
     }
   }
 
@@ -376,7 +390,8 @@ class ChatCubit extends Cubit<ChatState> {
     final editing = state.editing;
     emit(state.copyWith(
       messages: list,
-      clearEditing: editing != null && editing.id == message.id && message.isDeleted,
+      clearEditing:
+          editing != null && editing.id == message.id && message.isDeleted,
     ));
   }
 
@@ -447,8 +462,8 @@ class ChatCubit extends Cubit<ChatState> {
       body: caption.isEmpty ? null : caption,
       replyToId: state.replyTo?.id,
     );
-    emit(state.copyWith(
-        outgoing: [...state.outgoing, outgoing], clearReply: true));
+    emit(state
+        .copyWith(outgoing: [...state.outgoing, outgoing], clearReply: true));
     return _deliver(outgoing.localId);
   }
 
@@ -470,8 +485,7 @@ class ChatCubit extends Cubit<ChatState> {
     return null;
   }
 
-  void _replaceOutgoing(OutgoingMessage next) => emit(state.copyWith(
-      outgoing: [
+  void _replaceOutgoing(OutgoingMessage next) => emit(state.copyWith(outgoing: [
         for (final o in state.outgoing) o.localId == next.localId ? next : o
       ]));
 
@@ -485,9 +499,8 @@ class ChatCubit extends Cubit<ChatState> {
 
     for (var i = uploaded.length; i < files.length; i++) {
       final file = files[i];
-      final before = files
-          .take(i)
-          .fold<int>(0, (sum, f) => sum + f.bytes.length);
+      final before =
+          files.take(i).fold<int>(0, (sum, f) => sum + f.bytes.length);
       var lastShown = -1;
       final result = await upload(UploadAttachmentParams(
         bytes: file.bytes,
@@ -501,7 +514,8 @@ class ChatCubit extends Cubit<ChatState> {
           if (pct == lastShown || isClosed) return;
           lastShown = pct;
           final current = _outgoing(localId);
-          if (current != null) _replaceOutgoing(current.copyWith(progress: overall));
+          if (current != null)
+            _replaceOutgoing(current.copyWith(progress: overall));
         },
       ));
       if (isClosed) return false;
@@ -543,7 +557,8 @@ class ChatCubit extends Cubit<ChatState> {
 
   // ── Message actions ────────────────────────────────────────────────────
 
-  Future<void> deleteMessage(Message message, {required bool forEveryone}) async {
+  Future<void> deleteMessage(Message message,
+      {required bool forEveryone}) async {
     final previous = state.messages;
     if (forEveryone) {
       _upsert(Message(

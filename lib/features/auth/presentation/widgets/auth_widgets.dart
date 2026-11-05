@@ -238,16 +238,15 @@ class AuthPrimaryButton extends StatelessWidget {
             ? SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: onAccent),
+                child:
+                    CircularProgressIndicator(strokeWidth: 2, color: onAccent),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(label,
                       style: AppTypography.mono(
-                          size: 13,
-                          weight: FontWeight.w800,
-                          letterSpacing: 2)),
+                          size: 13, weight: FontWeight.w800, letterSpacing: 2)),
                   const SizedBox(width: 10),
                   const Icon(Icons.arrow_forward_rounded, size: 17),
                 ],
@@ -371,7 +370,7 @@ class RolePicker extends StatelessWidget {
             Expanded(
               child: _RoleCard(
                 title: 'Reporter',
-                description: 'Post reports from the ground',
+                description: 'Verified by our team',
                 icon: Icons.edit_outlined,
                 selected: value == UserRole.reporter,
                 onTap: () => onChanged(UserRole.reporter),
@@ -673,7 +672,8 @@ class PasswordChecklist extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: ok ? palette.verified : Colors.transparent,
-                  border: ok ? null : Border.all(color: palette.border, width: 1.5),
+                  border:
+                      ok ? null : Border.all(color: palette.border, width: 1.5),
                 ),
                 child: ok
                     ? Icon(Icons.check_rounded,
@@ -806,7 +806,8 @@ class AuthTip extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(fontSize: 13, height: 1.4, color: palette.muted)),
+                style:
+                    TextStyle(fontSize: 13, height: 1.4, color: palette.muted)),
           ),
         ],
       ),
