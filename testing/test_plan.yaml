@@ -626,6 +626,19 @@ features:
         expected: ['Mute / Unmute and Delete conversation, with a confirmation sheet']
         automation: manual
         note: Mutes or deletes a real conversation.
+      - id: messages.inbox.attachment_preview
+        title: Photo and file previews in the chat list
+        steps: [In an encrypted chat, send only a photo (no text), Go back to the chat list]
+        expected:
+          - The row reads "You: Photo" with a camera icon; 3 photos say "3 photos", a video "Video", a file its name, a mix "3 attachments"
+          - Messages with text show the text with no icon
+          - Chats that aren't encrypted still say "Attachment" with a paperclip (needs the attachment type from msg_inbox)
+        automation: manual
+        note: Sends a real message.
+      - id: messages.inbox.attachment_preview_logic
+        title: Attachment labels and icons
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
 
   - id: messages.search
     area: Messages

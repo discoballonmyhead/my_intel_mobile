@@ -55,7 +55,10 @@ class MessagingRepositoryImpl implements MessagingRepository {
             otherProfile: profiles[row['other_user_id'] as String?],
             lastSender: profiles[row['last_message_sender_id'] as String?]);
         if (row['last_message_kind'] == 'e2ee') {
-          entry = entry.copyWith(lastMessageBody: await _previewOf(row));
+          final preview = await _previewOf(row);
+          entry = entry.copyWith(
+              lastMessageBody: preview.body,
+              lastAttachmentType: preview.attachmentType);
         } else if (row['last_message_kind'] == 'system') {
           entry = entry.copyWith(
               lastMessageBody:
@@ -69,16 +72,18 @@ class MessagingRepositoryImpl implements MessagingRepository {
     });
   }
 
-  Future<String> _previewOf(Map<String, dynamic> row) async {
+  static const _sealed = (body: '🔒 Encrypted message', attachmentType: null);
+
+  Future<({String body, String? attachmentType})> _previewOf(
+      Map<String, dynamic> row) async {
     final crypto = _crypto;
     final id = asInt(row['last_message_id']);
-    if (crypto == null || id == null) return '🔒 Encrypted message';
+    if (crypto == null || id == null) return _sealed;
     final cached = await crypto.peek(id);
     if (cached != null) return _payloadPreview(cached);
     final env = row['last_message_envelope'];
     final ct = row['last_message_ciphertext'] as String?;
-    if (env is! Map || ct == null || !crypto.isReady)
-      return '🔒 Encrypted message';
+    if (env is! Map || ct == null || !crypto.isReady) return _sealed;
     final opened = await crypto.open(SealedRow(
       messageId: id,
       conversationId: row['conversation_id'] as String,
@@ -86,14 +91,18 @@ class MessagingRepositoryImpl implements MessagingRepository {
       envelope: Map<String, dynamic>.from(env),
       ciphertext: ct,
     ));
-    return opened.payload == null
-        ? '🔒 Encrypted message'
-        : _payloadPreview(opened.payload!);
+    return opened.payload == null ? _sealed : _payloadPreview(opened.payload!);
   }
 
-  String _payloadPreview(MessagePayload p) => p.body.trim().isNotEmpty
-      ? p.body.trim()
-      : (p.attachments.isNotEmpty ? 'Attachment' : ' ');
+  ({String body, String? attachmentType}) _payloadPreview(MessagePayload p) {
+    if (p.body.trim().isNotEmpty) {
+      return (body: p.body.trim(), attachmentType: null);
+    }
+    final summary = attachmentSummary(_attachments(p));
+    return summary == null
+        ? (body: ' ', attachmentType: null)
+        : (body: summary.label, attachmentType: summary.type);
+  }
 
   @override
   Future<Result<int>> getUnreadTotal() => guard(_remote.fetchUnreadTotal);

@@ -42,6 +42,29 @@ class SealedContent extends Equatable {
   List<Object?> get props => [ciphertext];
 }
 
+/// The chat list line for a message with no text: its kind ('image',
+/// 'video', 'file' or 'mixed') and a label like "3 photos". Null when there
+/// are no attachments.
+({String type, String label})? attachmentSummary(
+    List<MessageAttachment> attachments) {
+  if (attachments.isEmpty) return null;
+  final n = attachments.length;
+  final types = attachments.map((a) => a.type).toSet();
+  if (types.length > 1) return (type: 'mixed', label: '$n attachments');
+  return switch (types.single) {
+    'image' => (type: 'image', label: n == 1 ? 'Photo' : '$n photos'),
+    'video' => (type: 'video', label: n == 1 ? 'Video' : '$n videos'),
+    _ => (
+        type: 'file',
+        label: n == 1
+            ? ((attachments.single.name?.trim().isNotEmpty ?? false)
+                ? attachments.single.name!.trim()
+                : 'File')
+            : '$n files'
+      ),
+  };
+}
+
 class MessageAttachment extends Equatable {
   const MessageAttachment({
     required this.url,

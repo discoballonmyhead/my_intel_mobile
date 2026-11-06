@@ -307,7 +307,14 @@ class InboxRow extends StatelessWidget {
     final unread = entry.hasUnread;
     final preview = entry.preview(myUserId);
     final previewStyle = inter(14.5, color: unread ? onSurface : palette.muted);
-    final attachment = preview == 'Attachment' || preview == 'You: Attachment';
+    final attachmentIcon = !entry.lastIsAttachment
+        ? null
+        : switch (entry.lastAttachmentType) {
+            'image' => Icons.photo_camera_outlined,
+            'video' => Icons.videocam_outlined,
+            'file' => Icons.description_outlined,
+            _ => Icons.attach_file_rounded,
+          };
 
     return Semantics(
       identifier: 'inbox-row',
@@ -355,9 +362,8 @@ class InboxRow extends StatelessWidget {
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        if (attachment) ...[
-                          Icon(Icons.attach_file_rounded,
-                              size: 16, color: palette.muted),
+                        if (attachmentIcon != null) ...[
+                          Icon(attachmentIcon, size: 16, color: palette.muted),
                           const SizedBox(width: 4),
                         ],
                         Expanded(

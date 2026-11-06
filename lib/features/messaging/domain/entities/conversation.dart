@@ -159,6 +159,7 @@ class InboxEntry extends Equatable {
     this.lastMessageBody,
     this.lastMessageSenderId,
     this.lastSenderName,
+    this.lastAttachmentType,
     this.lastMessageDeleted = false,
     this.unreadCount = 0,
     this.isMuted = false,
@@ -179,6 +180,10 @@ class InboxEntry extends Equatable {
 
   /// Who sent the last message, for the group picture.
   final String? lastSenderName;
+
+  /// Set when the last message is only attachments ('image', 'video',
+  /// 'file' or 'mixed'); [lastMessageBody] then holds its label.
+  final String? lastAttachmentType;
   final bool lastMessageDeleted;
   final int unreadCount;
   final bool isMuted;
@@ -217,8 +222,19 @@ class InboxEntry extends Equatable {
           lastSenderName!,
       ];
 
+  /// The last message has no text, only attachments. Null type means the
+  /// kind isn't known (plain chats), shown as "Attachment".
+  bool get lastIsAttachment =>
+      lastMessageId != null &&
+      !lastMessageDeleted &&
+      (lastAttachmentType != null ||
+          !(lastMessageBody?.trim().isNotEmpty ?? false));
+
   InboxEntry copyWith(
-          {int? unreadCount, bool? isMuted, String? lastMessageBody}) =>
+          {int? unreadCount,
+          bool? isMuted,
+          String? lastMessageBody,
+          String? lastAttachmentType}) =>
       InboxEntry(
         conversationId: conversationId,
         kind: kind,
@@ -231,6 +247,7 @@ class InboxEntry extends Equatable {
         lastMessageBody: lastMessageBody ?? this.lastMessageBody,
         lastMessageSenderId: lastMessageSenderId,
         lastSenderName: lastSenderName,
+        lastAttachmentType: lastAttachmentType ?? this.lastAttachmentType,
         lastMessageDeleted: lastMessageDeleted,
         unreadCount: unreadCount ?? this.unreadCount,
         isMuted: isMuted ?? this.isMuted,
@@ -246,6 +263,7 @@ class InboxEntry extends Equatable {
         otherProfile,
         lastMessageId,
         lastMessageBody,
+        lastAttachmentType,
         lastMessageDeleted,
         unreadCount,
         isMuted,

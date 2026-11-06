@@ -489,4 +489,53 @@ void main() {
       expect(find.text('Latest'), findsOneWidget);
     });
   });
+
+  group('attachment preview', () {
+    MessageAttachment a(String type, [String? name]) =>
+        MessageAttachment(url: 'https://x/$type', type: type, name: name);
+
+    test('labels photos, videos, files and mixes', () {
+      expect(attachmentSummary([]), isNull);
+      expect(attachmentSummary([a('image')]), (type: 'image', label: 'Photo'));
+      expect(attachmentSummary([a('image'), a('image'), a('image')]),
+          (type: 'image', label: '3 photos'));
+      expect(attachmentSummary([a('video')]), (type: 'video', label: 'Video'));
+      expect(attachmentSummary([a('file', 'flood-advisory.pdf')]),
+          (type: 'file', label: 'flood-advisory.pdf'));
+      expect(attachmentSummary([a('file')]), (type: 'file', label: 'File'));
+      expect(attachmentSummary([a('file'), a('file')]),
+          (type: 'file', label: '2 files'));
+      expect(attachmentSummary([a('image'), a('file'), a('video')]),
+          (type: 'mixed', label: '3 attachments'));
+    });
+
+    InboxEntry entry({String? body, String? type, String sender = 'them'}) =>
+        InboxEntry(
+          conversationId: 'c',
+          kind: ConversationKind.direct,
+          lastActivityAt: DateTime(2026, 11, 5),
+          lastMessageId: 1,
+          lastMessageBody: body,
+          lastMessageSenderId: sender,
+          lastAttachmentType: type,
+        );
+
+    test('the chat list shows the label, with You: for my messages', () {
+      expect(entry(body: 'Photo', type: 'image').preview('me'), 'Photo');
+      expect(entry(body: 'Photo', type: 'image', sender: 'me').preview('me'),
+          'You: Photo');
+      expect(entry(body: 'Photo', type: 'image').lastIsAttachment, isTrue);
+    });
+
+    test('text messages get no attachment icon, even if they say Photo', () {
+      expect(entry(body: 'Photo').lastIsAttachment, isFalse);
+    });
+
+    test('plain chats without the type still say Attachment', () {
+      final e = entry();
+      expect(e.preview('me'), 'Attachment');
+      expect(e.lastIsAttachment, isTrue);
+      expect(e.lastAttachmentType, isNull);
+    });
+  });
 }
