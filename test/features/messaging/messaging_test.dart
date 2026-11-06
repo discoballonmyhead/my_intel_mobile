@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mint/core/constants/user_role.dart';
+import 'package:mint/core/theme/app_theme.dart';
 import 'package:mint/core/error/failures.dart';
 import 'package:mint/core/utils/result.dart';
 import 'package:mint/features/messaging/data/models/messaging_models.dart';
@@ -9,9 +12,11 @@ import 'package:mint/features/messaging/domain/entities/message.dart';
 import 'package:mint/features/messaging/domain/repositories/messaging_repository.dart';
 import 'package:mint/features/messaging/domain/usecases/messaging_usecases.dart';
 import 'package:mint/features/messaging/presentation/cubits/chat_cubit.dart';
+import 'package:mint/features/feed/presentation/widgets/composer_emoji_panel.dart';
+import 'package:mint/features/messaging/presentation/pages/chat_page.dart';
 import 'package:mint/features/messaging/presentation/pages/conversation_info_page.dart';
-import 'package:mint/features/messaging/presentation/pages/inbox_page.dart';
 import 'package:mint/features/messaging/presentation/widgets/message_bubble.dart';
+import 'package:mint/features/profile/domain/entities/profile.dart';
 
 /// Records uploads and sends; [failUploadAt] makes the n-th upload fail.
 class _FakeRepo implements MessagingRepository {
@@ -39,7 +44,10 @@ class _FakeRepo implements MessagingRepository {
       onProgress?.call(p);
     }
     return Ok(MessageAttachment(
-        url: 'https://x/$fileName', type: type, name: fileName, size: bytes.length));
+        url: 'https://x/$fileName',
+        type: type,
+        name: fileName,
+        size: bytes.length));
   }
 
   @override
@@ -104,35 +112,6 @@ Message _msg(int id,
     );
 
 void main() {
-  group('inbox search', () {
-    InboxEntry entry(String id, String name, String last, {bool group = false}) =>
-        InboxEntry(
-          conversationId: id,
-          kind: group ? ConversationKind.group : ConversationKind.direct,
-          lastActivityAt: DateTime(2026),
-          title: group ? name : null,
-          otherUserId: group ? null : 'u$id',
-          lastMessageId: 1,
-          lastMessageBody: last,
-        );
-    final entries = [
-      entry('1', 'Mumbai Floods Desk', 'Water is rising near Andheri', group: true),
-      entry('2', 'unknown', 'Did you see the flooding?'),
-      entry('3', 'unknown', 'Hello'),
-    ];
-
-    test('matches the name or the last message, ignoring case', () {
-      expect(searchInbox(entries, 'mumbai', 'me').map((e) => e.conversationId),
-          ['1']);
-      expect(searchInbox(entries, 'FLOOD', 'me').map((e) => e.conversationId),
-          ['1', '2']);
-    });
-
-    test('a blank query finds nothing', () {
-      expect(searchInbox(entries, '  ', 'me'), isEmpty);
-    });
-  });
-
   group('message previews', () {
     const photo = MessageAttachment(url: 'u', type: 'image');
     test('text wins; otherwise photo, photos, video or the file name', () {
@@ -140,8 +119,9 @@ void main() {
       expect(_msg(1, attachments: const [photo]).preview, 'Photo');
       expect(_msg(1, attachments: const [photo, photo]).preview, '2 photos');
       expect(
-          _msg(1, attachments: const [MessageAttachment(url: 'u', type: 'video')])
-              .preview,
+          _msg(1, attachments: const [
+            MessageAttachment(url: 'u', type: 'video')
+          ]).preview,
           'Video');
       expect(
           _msg(1, attachments: const [
@@ -158,8 +138,10 @@ void main() {
 
   group('attachments', () {
     test('size is saved with the message and read back', () {
-      const a = MessageAttachment(url: 'u', type: 'file', name: 'a.pdf', size: 1200);
-      expect(a.toJson(), {'url': 'u', 'type': 'file', 'name': 'a.pdf', 'size': 1200});
+      const a =
+          MessageAttachment(url: 'u', type: 'file', name: 'a.pdf', size: 1200);
+      expect(a.toJson(),
+          {'url': 'u', 'type': 'file', 'name': 'a.pdf', 'size': 1200});
       final back = MessageAttachmentModel.fromJson(a.toJson());
       expect([back.url, back.type, back.name, back.size], a.props);
     });
@@ -193,7 +175,8 @@ void main() {
     test('time, with Read and Edited when they apply', () {
       expect(messageFooter(_msg(1)), '10:42');
       expect(messageFooter(_msg(1), prefix: 'Read'), 'Read · 10:42');
-      expect(messageFooter(_msg(1, editedAt: DateTime(2026))), 'Edited · 10:42');
+      expect(
+          messageFooter(_msg(1, editedAt: DateTime(2026))), 'Edited · 10:42');
     });
   });
 
@@ -206,7 +189,8 @@ void main() {
           [_file('a.jpg'), _file('b.pdf', type: 'file')], '  Andheri  ');
       expect(ok, isTrue);
       expect(repo.uploads, 2);
-      expect(repo.sentAttachments.single.map((a) => a.name), ['a.jpg', 'b.pdf']);
+      expect(
+          repo.sentAttachments.single.map((a) => a.name), ['a.jpg', 'b.pdf']);
       expect(cubit.state.outgoing, isEmpty);
       expect(cubit.state.messages.single.body, 'Andheri');
       await cubit.close();
@@ -243,7 +227,8 @@ void main() {
       expect(retried, isTrue);
       // Only the file that hadn't gone up is uploaded again.
       expect(repo.uploads, 3);
-      expect(repo.sentAttachments.single.map((a) => a.name), ['a.jpg', 'b.jpg']);
+      expect(
+          repo.sentAttachments.single.map((a) => a.name), ['a.jpg', 'b.jpg']);
       expect(cubit.state.outgoing, isEmpty);
       await cubit.close();
     });
@@ -269,6 +254,239 @@ void main() {
       expect(cubit.state.outgoing, isEmpty);
       expect(repo.sentAttachments, isEmpty);
       await cubit.close();
+    });
+  });
+
+  group('locked messages', () {
+    Message m(int id,
+            {MessageEncryption enc = MessageEncryption.encrypted,
+            int day = 14}) =>
+        Message(
+          id: id,
+          conversationId: 'c1',
+          createdAt: DateTime(2026, 10, day, 10),
+          senderId: 'them',
+          body: 'hi',
+          encryption: enc,
+        );
+    bool sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+    const off = MessageEncryption.unavailable;
+
+    test(
+        'a run of locked messages folds into one entry; readable ones stay single',
+        () {
+      final entries = groupLockedMessages([
+        m(6),
+        m(5, enc: off),
+        m(4, enc: MessageEncryption.failed),
+        m(3, enc: off),
+        m(2),
+        m(1, enc: off),
+      ], sameDay: sameDay);
+      expect(entries.map((e) => e.map((x) => x.id).toList()).toList(), [
+        [6],
+        [5, 4, 3],
+        [2],
+        [1],
+      ]);
+    });
+
+    test('runs split at a new day, and waiting-for-key messages are not locked',
+        () {
+      final entries = groupLockedMessages([
+        m(3, enc: off, day: 15),
+        m(2, enc: off, day: 14),
+        m(1, enc: MessageEncryption.waitingForKey),
+      ], sameDay: sameDay);
+      expect(entries.length, 3);
+      expect(isLocked(m(1, enc: MessageEncryption.waitingForKey)), isFalse);
+    });
+
+    test('pill wording before and after a restore', () {
+      expect(
+          LockedRunPill.label(24, beforeRestore: true), '24 locked messages');
+      expect(LockedRunPill.label(1, beforeRestore: true), '1 locked message');
+      expect(LockedRunPill.label(3, beforeRestore: false),
+          '3 messages can’t be read on this phone');
+      expect(LockedRunPill.label(1, beforeRestore: false),
+          '1 message can’t be read on this phone');
+    });
+  });
+
+  group('group pictures', () {
+    Participant person(String id, String name) => Participant(
+        userId: id,
+        profile: Profile(id: id, username: name, role: UserRole.public));
+    final conversation = Conversation(
+      id: 'c1',
+      kind: ConversationKind.group,
+      title: 'Home',
+      participants: [
+        person('me', 'elsa'),
+        person('e', 'Elsa'),
+        person('s', 'shresth'),
+      ],
+    );
+    Message from(int id, String sender) => Message(
+        id: id,
+        conversationId: 'c1',
+        createdAt: DateTime(2026, 10, 14),
+        senderId: sender,
+        body: 'x');
+
+    test('chat and group info: the group plus the latest sender who isn’t you',
+        () {
+      final state = ChatState(
+          conversationId: 'c1',
+          myUserId: 'me',
+          conversation: conversation,
+          messages: [from(3, 'me'), from(2, 's'), from(1, 'e')]);
+      expect(state.groupAvatarNames, ['Home', 'shresth']);
+    });
+
+    test('before anyone else writes, any other member', () {
+      final state = ChatState(
+          conversationId: 'c1', myUserId: 'me', conversation: conversation);
+      expect(state.groupAvatarNames, ['Home', 'Elsa']);
+    });
+
+    test('inbox: the last sender, or just the group when you sent it', () {
+      InboxEntry row(String sender, String name) => InboxEntry(
+            conversationId: 'c1',
+            kind: ConversationKind.group,
+            lastActivityAt: DateTime(2026),
+            title: 'Home',
+            lastMessageId: 1,
+            lastMessageSenderId: sender,
+            lastSenderName: name,
+          );
+      expect(row('s', 'shresth').groupAvatarNames('me'), ['Home', 'shresth']);
+      expect(row('me', 'elsa').groupAvatarNames('me'), ['Home']);
+    });
+  });
+
+  group('recently used emoji', () {
+    test('the newest pick goes first, without duplicates, capped', () {
+      expect(recentAfterPick(['😀', '👍'], '👍'), ['👍', '😀']);
+      expect(recentAfterPick(['a', 'b', 'c'], 'd', max: 3), ['d', 'a', 'b']);
+    });
+  });
+
+  group('swipe to reply', () {
+    Future<int> swipe(WidgetTester tester, Offset start, double dx) async {
+      var replies = 0;
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SwipeToReply(
+            onReply: () => replies++,
+            child: const SizedBox(
+                width: 300, height: 60, child: Text('Did you see it?')),
+          ),
+        ),
+      ));
+      final g = await tester.startGesture(start);
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(Offset(dx / 10, 0));
+        await tester.pump();
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+      return replies;
+    }
+
+    testWidgets('swiping far enough to the right replies', (tester) async {
+      expect(await swipe(tester, const Offset(100, 30), 100), 1);
+    });
+
+    testWidgets('a short swipe springs back without replying', (tester) async {
+      expect(await swipe(tester, const Offset(100, 30), 30), 0);
+    });
+
+    testWidgets('a swipe from the screen edge is left to the back gesture',
+        (tester) async {
+      expect(await swipe(tester, const Offset(5, 30), 100), 0);
+    });
+  });
+
+  group('jump to latest', () {
+    test('label counts new messages', () {
+      expect(JumpToLatest.label(0), 'Latest');
+      expect(JumpToLatest.label(1), '1 new message');
+      expect(JumpToLatest.label(3), '3 new messages');
+    });
+
+    Widget thread(ScrollController scroll,
+            {int? newest, bool fromOthers = true}) =>
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Stack(children: [
+              ListView.builder(
+                controller: scroll,
+                reverse: true,
+                itemCount: 200,
+                itemBuilder: (_, i) =>
+                    SizedBox(height: 60, child: Text('Message $i')),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Center(
+                  child: JumpToLatest(
+                      controller: scroll,
+                      newestKey: newest,
+                      newestFromOthers: fromOthers),
+                ),
+              ),
+            ]),
+          ),
+        );
+
+    double opacity(WidgetTester tester) => tester
+        .widget<AnimatedOpacity>(find.ancestor(
+            of: find.byIcon(Icons.arrow_downward_rounded),
+            matching: find.byType(AnimatedOpacity)))
+        .opacity;
+
+    testWidgets('hidden at the newest message, shown after scrolling up',
+        (tester) async {
+      final scroll = ScrollController();
+      await tester.pumpWidget(thread(scroll, newest: 1));
+      expect(opacity(tester), 0);
+      scroll.jumpTo(2000);
+      await tester.pumpAndSettle();
+      expect(opacity(tester), 1);
+      expect(find.text('Latest'), findsOneWidget);
+    });
+
+    testWidgets('tapping it goes back to the newest message', (tester) async {
+      final scroll = ScrollController();
+      await tester.pumpWidget(thread(scroll, newest: 1));
+      scroll.jumpTo(8000);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Latest'));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, 0);
+      expect(opacity(tester), 0);
+    });
+
+    testWidgets('counts messages from others while scrolled up',
+        (tester) async {
+      final scroll = ScrollController();
+      await tester.pumpWidget(thread(scroll, newest: 1));
+      scroll.jumpTo(2000);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(thread(scroll, newest: 2));
+      await tester.pumpWidget(thread(scroll, newest: 3));
+      await tester.pumpWidget(thread(scroll, newest: 4, fromOthers: false));
+      await tester.pumpAndSettle();
+      expect(find.text('2 new messages'), findsOneWidget);
+      scroll.jumpTo(0);
+      await tester.pumpAndSettle();
+      expect(find.text('Latest'), findsOneWidget);
     });
   });
 }

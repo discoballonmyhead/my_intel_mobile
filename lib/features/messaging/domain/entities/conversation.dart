@@ -158,6 +158,7 @@ class InboxEntry extends Equatable {
     this.lastMessageId,
     this.lastMessageBody,
     this.lastMessageSenderId,
+    this.lastSenderName,
     this.lastMessageDeleted = false,
     this.unreadCount = 0,
     this.isMuted = false,
@@ -175,6 +176,9 @@ class InboxEntry extends Equatable {
   final int? lastMessageId;
   final String? lastMessageBody;
   final String? lastMessageSenderId;
+
+  /// Who sent the last message, for the group picture.
+  final String? lastSenderName;
   final bool lastMessageDeleted;
   final int unreadCount;
   final bool isMuted;
@@ -205,6 +209,14 @@ class InboxEntry extends Equatable {
         : text;
   }
 
+  /// Group picture: the group's letter and the last sender who isn't you
+  /// (same rule as the chat header and group info).
+  List<String> groupAvatarNames(String? myUserId) => [
+        displayName,
+        if (lastSenderName != null && lastMessageSenderId != myUserId)
+          lastSenderName!,
+      ];
+
   InboxEntry copyWith(
           {int? unreadCount, bool? isMuted, String? lastMessageBody}) =>
       InboxEntry(
@@ -218,6 +230,7 @@ class InboxEntry extends Equatable {
         lastMessageId: lastMessageId,
         lastMessageBody: lastMessageBody ?? this.lastMessageBody,
         lastMessageSenderId: lastMessageSenderId,
+        lastSenderName: lastSenderName,
         lastMessageDeleted: lastMessageDeleted,
         unreadCount: unreadCount ?? this.unreadCount,
         isMuted: isMuted ?? this.isMuted,

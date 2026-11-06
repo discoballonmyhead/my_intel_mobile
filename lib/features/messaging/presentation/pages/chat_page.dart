@@ -9,6 +9,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../e2ee/presentation/cubits/e2ee_cubit.dart';
 import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../../moderation/domain/entities/report.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
@@ -58,13 +59,17 @@ class _ChatPageState extends State<ChatPage> {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
     final ok = await context.read<ChatCubit>().submit(text);
-    if (ok && mounted) _controller.clear();
+    if (ok && mounted) {
+      _controller.clear();
+      unawaited(JumpToLatest.scrollToLatest(_scroll));
+    }
   }
 
   void _sendFiles(List<PickedChatFile> files) {
     final text = _controller.text;
     _controller.clear();
     unawaited(context.read<ChatCubit>().sendFiles(files, text));
+    unawaited(JumpToLatest.scrollToLatest(_scroll));
   }
 
   void _openInfo() {
@@ -84,17 +89,24 @@ class _ChatPageState extends State<ChatPage> {
     final mine = message.isMine(myId);
     final hasText = (message.body ?? '').trim().isNotEmpty;
 
+    // Nothing readable to reply to, copy or edit: only Delete.
+    final locked = !message.isDeleted && !message.isReadable;
     final items = <(String, IconData, bool)>[
-      if (!message.isDeleted) ('Reply', Icons.reply_rounded, false),
-      if (hasText && !message.isDeleted)
-        ('Copy', Icons.content_copy_rounded, false),
-      if (message.canEdit(myId) && hasText) ('Edit', Icons.edit_rounded, false),
-      if (!mine && message.senderId != null && !message.isDeleted)
-        ('View profile', Icons.person_outline_rounded, false),
-      if (mine || message.isDeleted)
+      if (locked)
         ('Delete', Icons.delete_outline_rounded, true)
-      else if (message.senderId != null)
-        ('Report', Icons.flag_outlined, true),
+      else ...[
+        if (!message.isDeleted) ('Reply', Icons.reply_rounded, false),
+        if (hasText && !message.isDeleted)
+          ('Copy', Icons.content_copy_rounded, false),
+        if (message.canEdit(myId) && hasText)
+          ('Edit', Icons.edit_rounded, false),
+        if (!mine && message.senderId != null && !message.isDeleted)
+          ('View profile', Icons.person_outline_rounded, false),
+        if (mine || message.isDeleted)
+          ('Delete', Icons.delete_outline_rounded, true)
+        else if (message.senderId != null)
+          ('Report', Icons.flag_outlined, true),
+      ],
     ];
     unawaited(HapticFeedback.mediumImpact());
     final choice = await showGeneralDialog<String>(
@@ -153,6 +165,23 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Long-press on a run of locked messages: delete them all, for you only.
+  Future<void> _onLockedRunLongPress(List<Message> run) async {
+    final cubit = context.read<ChatCubit>();
+    unawaited(HapticFeedback.mediumImpact());
+    final one = run.length == 1;
+    final pick = await showConfirmSheet(
+      context,
+      title: one ? 'Delete message?' : 'Delete ${run.length} messages?',
+      body: 'They can’t be read on this phone. They’re removed for you only.',
+      actions: const [SheetAction('Delete for me', destructive: true)],
+    );
+    if (pick != 0 || !mounted) return;
+    for (final m in run) {
+      await cubit.deleteMessage(m, forEveryone: false);
+    }
+  }
+
   Widget _bubbleFor(ChatState state, Message message,
       {bool interactive = true,
       String? footer,
@@ -160,7 +189,7 @@ class _ChatPageState extends State<ChatPage> {
       bool showAvatar = false}) {
     final isGroup = state.conversation?.isGroup ?? false;
     final replyTo = state.messageById(message.replyToId);
-    return MessageBubble(
+    final bubble = MessageBubble(
       key: interactive ? ValueKey(message.id) : null,
       message: message,
       isMine: message.isMine(state.myUserId),
@@ -173,10 +202,22 @@ class _ChatPageState extends State<ChatPage> {
       footer: footer,
       onLongPress: interactive ? (rect) => _onLongPress(message, rect) : null,
     );
+    final canReply = interactive &&
+        !message.isSystem &&
+        !message.isDeleted &&
+        message.isReadable;
+    if (!canReply) return bubble;
+    return SwipeToReply(
+      key: ValueKey('swipe-${message.id}'),
+      onReply: () => context.read<ChatCubit>().startReply(message),
+      child: bubble,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final beforeRestore =
+        context.select<E2eeCubit, bool>((c) => c.state.needsRestore);
     return BlocConsumer<ChatCubit, ChatState>(
       listenWhen: (a, b) =>
           a.isClosedForMe != b.isClosedForMe ||
@@ -226,7 +267,26 @@ class _ChatPageState extends State<ChatPage> {
                       onTap: () => FocusScope.of(context).unfocus(),
                       child: state.messages.isEmpty && state.outgoing.isEmpty
                           ? _NewConversation(state: state)
-                          : _thread(state),
+                          : Stack(
+                              children: [
+                                _thread(state, beforeRestore: beforeRestore),
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 16,
+                                  child: Center(
+                                    child: JumpToLatest(
+                                      controller: _scroll,
+                                      newestKey: state.messages.firstOrNull?.id,
+                                      newestFromOthers: !(state
+                                              .messages.firstOrNull
+                                              ?.isMine(state.myUserId) ??
+                                          true),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                   if (conversation != null)
@@ -265,7 +325,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _thread(ChatState state) {
+  Widget _thread(ChatState state, {required bool beforeRestore}) {
     final messages = state.messages;
     final outgoing = state.outgoing.reversed.toList();
     final isGroup = state.conversation?.isGroup ?? false;
@@ -289,13 +349,21 @@ class _ChatPageState extends State<ChatPage> {
         a.senderId == b.senderId &&
         sameDay(a.createdAt, b.createdAt);
 
+    // Newest first, like [messages]. Messages this phone can't read sit
+    // together in one entry per day so they show as a single pill.
+    final entries = groupLockedMessages(messages, sameDay: sameDay);
+    final showRestore =
+        beforeRestore && entries.any((e) => e.length > 1 || isLocked(e.first));
+
     return ListView.builder(
       controller: _scroll,
       reverse: true,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      itemCount:
-          outgoing.length + messages.length + (state.isLoadingMore ? 1 : 0),
+      itemCount: outgoing.length +
+          entries.length +
+          (state.isLoadingMore ? 1 : 0) +
+          (showRestore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < outgoing.length) {
           final o = outgoing[index];
@@ -308,36 +376,137 @@ class _ChatPageState extends State<ChatPage> {
           );
         }
         final i = index - outgoing.length;
-        if (i >= messages.length) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(
-                child: SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))),
+        if (i >= entries.length) {
+          if (state.isLoadingMore && i == entries.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                  child: SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))),
+            );
+          }
+          return const _RestoreCard();
+        }
+        final entry = entries[i];
+        final m = entry.first;
+        final newer = i > 0 ? entries[i - 1].last : null;
+        final older = i + 1 < entries.length ? entries[i + 1].first : null;
+        final oldest = entry.last;
+        final showDay =
+            older == null || !sameDay(oldest.createdAt, older.createdAt);
+
+        Widget item;
+        if (isLocked(m)) {
+          item = LockedRunPill(
+            key: ValueKey('locked-${m.id}'),
+            count: entry.length,
+            beforeRestore: beforeRestore,
+            onLongPress: () => _onLockedRunLongPress(entry),
           );
+        } else {
+          final runEnd = !sameRun(m, newer);
+          final runStart = !sameRun(m, older);
+          String? footer;
+          if (runEnd && !m.isSystem && !m.isDeleted) {
+            footer =
+                messageFooter(m, prefix: m.id == lastSeenMine ? 'Read' : null);
+          } else if (m.isEdited) {
+            footer = 'Edited';
+          }
+          item = _bubbleFor(state, m,
+              footer: footer, showSender: runStart, showAvatar: runEnd);
         }
-        final m = messages[i];
-        final newer = i > 0 ? messages[i - 1] : null;
-        final older = i + 1 < messages.length ? messages[i + 1] : null;
-        final runEnd = !sameRun(m, newer);
-        final runStart = !sameRun(m, older);
-        String? footer;
-        if (runEnd && !m.isSystem && !m.isDeleted) {
-          footer =
-              messageFooter(m, prefix: m.id == lastSeenMine ? 'Read' : null);
-        } else if (m.isEdited) {
-          footer = 'Edited';
-        }
-        final bubble = _bubbleFor(state, m,
-            footer: footer, showSender: runStart, showAvatar: runEnd);
-        final showDay = older == null || !sameDay(m.createdAt, older.createdAt);
-        if (!showDay) return bubble;
+        if (!showDay) return item;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [DayChip(day: m.createdAt.toLocal()), bubble],
+          children: [DayChip(day: oldest.createdAt.toLocal()), item],
         );
       },
+    );
+  }
+}
+
+/// A message this phone has no keys for (sent before a restore, or one that
+/// failed to decrypt). Group messages still waiting for their key are not
+/// locked: they arrive on their own.
+bool isLocked(Message m) =>
+    !m.isSystem &&
+    !m.isDeleted &&
+    (m.encryption == MessageEncryption.unavailable ||
+        m.encryption == MessageEncryption.failed);
+
+/// Splits [messages] (newest first) into entries: one per readable message,
+/// and one per same-day run of locked messages.
+List<List<Message>> groupLockedMessages(List<Message> messages,
+    {required bool Function(DateTime, DateTime) sameDay}) {
+  final entries = <List<Message>>[];
+  for (final m in messages) {
+    final last = entries.isEmpty ? null : entries.last;
+    if (last != null &&
+        isLocked(m) &&
+        isLocked(last.last) &&
+        sameDay(last.last.createdAt, m.createdAt)) {
+      last.add(m);
+    } else {
+      entries.add([m]);
+    }
+  }
+  return entries;
+}
+
+/// Top of a chat on a phone that hasn't restored its backup yet.
+class _RestoreCard extends StatelessWidget {
+  const _RestoreCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: palette.accent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.lock_reset_rounded, color: palette.accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Older messages are locked on this phone',
+                      style:
+                          inter(15, weight: FontWeight.w600, color: onSurface)),
+                  const SizedBox(height: 3),
+                  Text('Restore with your backup PIN to read them here.',
+                      style: inter(13, color: palette.muted, height: 1.4)),
+                  const SizedBox(height: 12),
+                  PillButton(
+                    label: 'Restore',
+                    width: 108,
+                    height: 36,
+                    onPressed: () => context.push(AppRoutes.restoreMessages),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -364,11 +533,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         : isGroup
             ? '${conversation.participants.length} members'
             : other?.profile?.role.displayName;
-    final names = conversation?.participants
-            .where((p) => p.userId != state.myUserId)
-            .map((p) => p.displayName)
-            .toList() ??
-        const <String>[];
+    final names = state.groupAvatarNames;
 
     return AppBar(
       titleSpacing: 0,

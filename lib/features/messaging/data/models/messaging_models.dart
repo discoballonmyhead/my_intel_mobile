@@ -161,6 +161,7 @@ class InboxEntryModel extends InboxEntry {
     super.lastMessageId,
     super.lastMessageBody,
     super.lastMessageSenderId,
+    super.lastSenderName,
     super.lastMessageDeleted,
     super.unreadCount,
     super.isMuted,
@@ -169,7 +170,7 @@ class InboxEntryModel extends InboxEntry {
   });
 
   factory InboxEntryModel.fromJson(Map<String, dynamic> json,
-      {Profile? otherProfile}) {
+      {Profile? otherProfile, Profile? lastSender}) {
     return InboxEntryModel(
       conversationId: json['conversation_id'] as String,
       kind: ConversationKind.fromValue(json['kind'] as String?),
@@ -182,6 +183,7 @@ class InboxEntryModel extends InboxEntry {
       lastMessageId: asInt(json['last_message_id']),
       lastMessageBody: json['last_message_body'] as String?,
       lastMessageSenderId: json['last_message_sender_id'] as String?,
+      lastSenderName: lastSender?.username,
       lastMessageDeleted: (json['last_message_deleted'] as bool?) ?? false,
       unreadCount: asInt(json['unread_count']) ?? 0,
       isMuted: (json['is_muted'] as bool?) ?? false,

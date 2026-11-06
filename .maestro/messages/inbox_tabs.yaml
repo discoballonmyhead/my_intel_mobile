@@ -5,8 +5,12 @@ tags: [messages]
 - launchApp
 - runFlow: ../subflows/login.yaml
 - tapOn: "(?s)Messages.*Tab.*"
-- assertVisible: "Search messages and people"
+- assertVisible: "(?s)Chats.*"
 - tapOn: "(?s)Groups.*"
-- assertVisible: "New group"
+# On the Groups tab ✎ starts a group; there is no separate New group row.
+- tapOn: "New group"
+- assertVisible: "Next"
+- tapOn: "Back"
 - tapOn: "(?s)Chats.*"
-- assertVisible: "Search messages and people"
+- assertVisible: "New message"
+- assertVisible: "(?s)Chats.*"

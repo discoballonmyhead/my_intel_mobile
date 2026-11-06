@@ -155,6 +155,24 @@ class ChatState extends Equatable {
       !conversation!.isGroup &&
       conversation!.participants.length < 2;
 
+  /// Group picture: the group's letter and the most recent sender who isn't
+  /// you, or any other member until someone else has written. The inbox uses
+  /// the same rule, so a group looks the same everywhere.
+  List<String> get groupAvatarNames {
+    final others = conversation?.participants
+            .where((p) => p.userId != myUserId)
+            .toList() ??
+        const [];
+    String? partner;
+    for (final m in messages) {
+      if (m.isSystem || m.senderId == null || m.senderId == myUserId) continue;
+      partner = conversation?.participant(m.senderId!)?.displayName;
+      if (partner != null) break;
+    }
+    partner ??= others.isEmpty ? null : others.first.displayName;
+    return [title, if (partner != null) partner];
+  }
+
   String senderName(String? senderId) {
     if (senderId == null) return 'Deleted user';
     if (senderId == myUserId) return 'You';

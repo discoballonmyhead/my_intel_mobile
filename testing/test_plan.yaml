@@ -610,10 +610,11 @@ features:
     cases:
       - id: messages.inbox.tabs
         title: Switch between Chats and Groups
-        steps: [Open Messages, Tap Groups, Tap Chats]
+        steps: [Open Messages, Tap Groups, Tap ✎, Go back, Tap Chats]
         expected:
           - Each tab shows its unread count; rows show name, last message, time and unread count
-          - Groups ends with a "New group" card
+          - ✎ opens New message on the Chats tab and New group on the Groups tab (no separate New group row)
+          - An empty Groups tab says "No groups yet" with a New group button
         automation: .maestro/messages/inbox_tabs.yaml
       - id: messages.inbox.states
         title: Empty, loading and error states
@@ -629,16 +630,12 @@ features:
   - id: messages.search
     area: Messages
     name: Search messages and people
-    status: ready
-    cases:
-      - id: messages.search.find
-        title: Search, see no results, Cancel
-        steps: [Tap the search bar, Type a word, Tap Cancel]
-        expected:
-          - People by username and conversations by name or last message, with the match in bold
-          - '"No results for …" when nothing matches; Cancel returns to the tabs'
-        automation: .maestro/messages/search.yaml
-        note: Only the last message of each conversation is searched.
+    status: parked
+    note: >-
+      Removed from the Messages tab on 2026-11-05 until there's a search approach
+      (encrypted messages can only be searched on the phone). Design kept in Figma,
+      Options · Messages → J · Search inside messages and K · Search (parked).
+    cases: []
 
   - id: messages.new
     area: Messages
@@ -684,6 +681,51 @@ features:
           - 'Theirs: Reply, Copy, View profile, Report'
         automation: manual
         note: Maestro can't long-press reliably on the lifted message; also sends real edits and deletes.
+      - id: messages.chat.swipe_reply
+        title: Swipe a message right to reply
+        steps: [Open a chat, Swipe a message to the right past the red reply arrow, Let go]
+        expected:
+          - The message follows the finger; a reply arrow fades in on its left and turns red with a light tap
+          - Letting go opens "Replying to …" above the message box; a short swipe just springs back
+          - Swipes starting at the left screen edge go back instead; deleted and locked messages don't swipe
+        automation: .maestro/messages/swipe_reply.yaml
+      - id: messages.chat.swipe_reply_logic
+        title: Swipe threshold and edge
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
+      - id: messages.chat.jump_latest
+        title: Jump back to the latest message
+        steps: [Open a long chat, Scroll up more than a screen, Tap "↓ Latest"]
+        expected:
+          - The pill fades in centred above the message box once you're a screen up, and hides again at the bottom
+          - New messages from others while you're up turn it red, "↓ 1 new message" / "↓ 3 new messages"
+          - Tapping it scrolls smoothly to the newest message; sending a message also goes to the bottom
+        automation: .maestro/messages/jump_latest.yaml
+        note: Needs a conversation with more than a screen of messages.
+      - id: messages.chat.jump_latest_logic
+        title: Pill visibility, count and scroll back
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
+      - id: messages.chat.locked
+        title: Messages this phone can't read
+        steps: [Sign in on a new phone or simulator without restoring, Open a chat with encrypted history]
+        expected:
+          - A card at the top, "Older messages are locked on this phone", with Restore → Restore messages
+          - Locked messages fold into one pill per day, "24 locked messages"; after a restore any left say "3 messages can’t be read on this phone"
+          - Long-pressing a locked message or pill offers only Delete (for me)
+          - Chat info → Verify security code says this phone has no keys yet and offers Restore with PIN
+        automation: manual
+        note: Needs an account with an encrypted chat and a backup PIN on a second device.
+      - id: messages.chat.locked_logic
+        title: Folding locked messages and the pill wording
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
+      - id: messages.chat.recent_emoji
+        title: Recently used emoji
+        steps: [Open the emoji panel, Pick two emoji, Close and reopen the panel]
+        expected: ['A clock tab comes first with the emoji just used, newest first (also in the Feed composer)']
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
 
   - id: messages.attachments
     area: Messages
@@ -723,10 +765,15 @@ features:
       - id: messages.info.group
         title: Group info for an admin
         expected:
-          - Edit (rename), Add people, members with Admin marked, tap a member for View profile / Message / Remove
+          - Edit (rename), Add people, members with their picture and role and Admin marked, tap a member for View profile / Message / Remove
           - Leave group with a confirmation sheet
         automation: manual
         note: Needs a group; renaming, adding, removing and leaving change real data.
+      - id: messages.info.group_picture
+        title: Group picture is the same everywhere
+        expected: ['Inbox, chat header and group info show the group letter plus the latest sender who isn’t you (just the group letter in the inbox when you sent last)']
+        automation: unit
+        test: test/features/messaging/messaging_test.dart
       - id: messages.info.shared_media
         title: See all photos, videos and files
         expected: ['Media grid and Files list; tap a photo to open it full screen']

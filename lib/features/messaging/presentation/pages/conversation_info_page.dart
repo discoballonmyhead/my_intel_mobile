@@ -94,7 +94,7 @@ class _Scaffold extends StatelessWidget {
         if (action != null) action!,
       ]),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         children: children,
       ),
     );
@@ -126,6 +126,75 @@ class _Header extends StatelessWidget {
         ],
         const SizedBox(height: 22),
       ],
+    );
+  }
+}
+
+/// Group members with their picture and role; Admin on the right.
+class _Members extends StatelessWidget {
+  const _Members(
+      {required this.members, required this.myUserId, required this.onTap});
+
+  final List<Participant> members;
+  final String? myUserId;
+  final ValueChanged<Participant> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            for (var i = 0; i < members.length; i++) ...[
+              _row(members[i], palette, onSurface),
+              if (i < members.length - 1)
+                Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 64,
+                    endIndent: 16,
+                    color: palette.border.withValues(alpha: 0.7)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(Participant p, AppPalette palette, Color onSurface) {
+    final me = p.userId == myUserId;
+    final role = p.profile?.role.displayName;
+    return InkWell(
+      onTap: me ? null : () => onTap(p),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            UserAvatar(name: p.displayName, radius: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(me ? 'You' : p.displayName,
+                      style: inter(16, color: onSurface)),
+                  if (role != null)
+                    Text(role, style: inter(13, color: palette.muted)),
+                ],
+              ),
+            ),
+            if (p.role.canManage)
+              Text('Group admin', style: inter(14, color: palette.muted)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -476,10 +545,7 @@ class _GroupInfo extends StatelessWidget {
                 : 1;
         return rank(a).compareTo(rank(b));
       });
-    final names = members
-        .where((p) => p.userId != state.myUserId)
-        .map((p) => p.displayName)
-        .toList();
+    final names = state.groupAvatarNames;
 
     return _Scaffold(
       action: canManage
@@ -523,16 +589,11 @@ class _GroupInfo extends StatelessWidget {
         _MediaStrip(attachments: sharedAttachments(state.messages)),
         const SizedBox(height: 22),
         SectionLabel('${members.length} members'),
-        SettingsGroup([
-          for (final p in members)
-            SettingsRow(
-              title: p.userId == state.myUserId ? 'You' : p.displayName,
-              value: p.role.canManage ? 'Admin' : null,
-              chevron: false,
-              onTap:
-                  p.userId == state.myUserId ? null : () => _member(context, p),
-            ),
-        ]),
+        _Members(
+          members: members,
+          myUserId: state.myUserId,
+          onTap: (p) => _member(context, p),
+        ),
         SettingsGroup([
           SettingsRow(
             title: 'Leave group',

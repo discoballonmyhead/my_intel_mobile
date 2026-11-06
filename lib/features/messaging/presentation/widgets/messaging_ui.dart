@@ -20,9 +20,17 @@ class GroupAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final d = size * 0.62;
     final first = names.isNotEmpty ? names.first : 'G';
-    final second = names.length > 1 ? names[1] : first;
+    // Only the group's name known (e.g. you sent the last message): one
+    // circle, not the same letter twice.
+    if (names.length < 2) {
+      return SizedBox.square(
+        dimension: size,
+        child: Center(child: UserAvatar(name: first, radius: size / 2)),
+      );
+    }
+    final d = size * 0.62;
+    final second = names[1];
     return SizedBox(
       width: size,
       height: size,

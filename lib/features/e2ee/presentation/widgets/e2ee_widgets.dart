@@ -157,7 +157,23 @@ class SafetyNumberSheet extends StatelessWidget {
               const SizedBox(height: 20),
               if (snap.connectionState != ConnectionState.done)
                 const Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())
-              else if (number == null)
+              else if (number == null && !cubit.state.isReady) ...[
+                // The missing keys are on this phone, not theirs.
+                Text(
+                  'This phone doesn’t have your encryption keys yet, so there’s '
+                  'no code to compare. Restore with your backup PIN first.',
+                  textAlign: TextAlign.center,
+                  style: inter(14, color: palette.muted, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                PillButton(
+                  label: 'Restore with PIN',
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.push(AppRoutes.restoreMessages);
+                  },
+                ),
+              ] else if (number == null)
                 Text('$name hasn’t set up encryption yet.', style: inter(15, color: palette.muted))
               else ...[
                 Text(number,

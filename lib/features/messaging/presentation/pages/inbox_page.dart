@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/di/injection.dart';
 import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -12,28 +11,13 @@ import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/mint_logo.dart';
 import '../../../../core/widgets/user_avatar.dart';
-import '../../../profile/domain/entities/profile.dart';
-import '../../../profile/domain/usecases/search_profiles.dart';
 import '../../../profile/presentation/widgets/profile_ui.dart';
 import '../../../e2ee/presentation/widgets/e2ee_widgets.dart';
 import '../../domain/entities/conversation.dart';
 import '../cubits/inbox_cubit.dart';
 import '../widgets/messaging_ui.dart';
 
-/// Conversations whose name or last message contains [query], ignoring case.
-List<InboxEntry> searchInbox(
-    List<InboxEntry> entries, String query, String? myUserId) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return const [];
-  return [
-    for (final e in entries)
-      if (e.displayName.toLowerCase().contains(q) ||
-          e.preview(myUserId).toLowerCase().contains(q))
-        e,
-  ];
-}
-
-/// The Messages tab: search, Chats / Groups tabs and the conversation list.
+/// The Messages tab: Chats / Groups tabs and the conversation list.
 class InboxPage extends StatefulWidget {
   const InboxPage({super.key});
 
@@ -42,66 +26,7 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
-  final _query = TextEditingController();
-  final _focus = FocusNode();
   bool _groups = false;
-  bool _searching = false;
-  final _searchKey = GlobalKey(debugLabel: 'inbox-search');
-
-  // People results for the search, from the same lookup New message uses.
-  List<Profile> _people = const [];
-  Timer? _debounce;
-  int _token = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (_focus.hasFocus && !_searching) setState(() => _searching = true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _query.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  void _onQuery(String value) {
-    setState(() {});
-    _debounce?.cancel();
-    if (value.trim().length < 2) {
-      setState(() => _people = const []);
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 300), () async {
-      final token = ++_token;
-      final result =
-          await sl<SearchProfiles>()(SearchProfilesParams(query: value.trim()));
-      if (!mounted || token != _token) return;
-      final me = context.read<InboxCubit>().state.userId;
-      setState(() => _people = (result.valueOrNull ?? const <Profile>[])
-          .where((p) => p.id != me)
-          .take(5)
-          .toList());
-    });
-  }
-
-  void _cancelSearch() {
-    _focus.unfocus();
-    _query.clear();
-    setState(() {
-      _searching = false;
-      _people = const [];
-    });
-  }
-
-  Future<void> _openPerson(Profile person) async {
-    final id = await context.read<InboxCubit>().openDirect(person.id);
-    if (id != null && mounted) unawaited(context.push(AppRoutes.chatFor(id)));
-  }
 
   Future<void> _showActions(InboxEntry entry) async {
     final cubit = context.read<InboxCubit>();
@@ -150,26 +75,20 @@ class _InboxPageState extends State<InboxPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!_searching) _title(context),
-                  if (!_searching) const E2eeInboxBanner(),
-                  // Keyed so the field keeps focus when the title hides.
-                  KeyedSubtree(key: _searchKey, child: _searchBar(context)),
-                  if (_searching)
-                    Expanded(child: _results(context, state))
-                  else ...[
-                    _Tabs(
-                      groups: _groups,
-                      chatsUnread: _unread(state, groups: false),
-                      groupsUnread: _unread(state, groups: true),
-                      onChanged: (g) => setState(() => _groups = g),
+                  _title(context),
+                  const E2eeInboxBanner(),
+                  _Tabs(
+                    groups: _groups,
+                    chatsUnread: _unread(state, groups: false),
+                    groupsUnread: _unread(state, groups: true),
+                    onChanged: (g) => setState(() => _groups = g),
+                  ),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: cubit.refresh,
+                      child: _list(context, state, cubit),
                     ),
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: cubit.refresh,
-                        child: _list(context, state, cubit),
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             );
@@ -183,7 +102,8 @@ class _InboxPageState extends State<InboxPage> {
       .where((e) => e.isGroup == groups && !e.isMuted)
       .fold(0, (sum, e) => sum + e.unreadCount);
 
-  /// The MINT logo with New message on the right, like the Feed header.
+  /// The MINT logo with ✎ on the right, like the Feed header: New message on
+  /// the Chats tab, New group on the Groups tab.
   Widget _title(BuildContext context) {
     return SizedBox(
       height: 56,
@@ -195,71 +115,13 @@ class _InboxPageState extends State<InboxPage> {
           Positioned(
             right: 6,
             child: IconButton(
-              tooltip: 'New message',
+              tooltip: _groups ? 'New group' : 'New message',
               icon: const Icon(Icons.edit_square),
-              onPressed: () => context.push(AppRoutes.newMessage),
+              onPressed: () => context.push(_groups
+                  ? '${AppRoutes.newMessage}?group=1'
+                  : AppRoutes.newMessage),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _searchBar(BuildContext context) {
-    final palette = context.palette;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(21),
-      borderSide:
-          _searching ? BorderSide(color: palette.border) : BorderSide.none,
-    );
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, _searching ? 10 : 2, 8, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _query,
-              focusNode: _focus,
-              onChanged: _onQuery,
-              textInputAction: TextInputAction.search,
-              style: inter(15.5, color: onSurface),
-              decoration: InputDecoration(
-                hintText: 'Search messages and people',
-                hintStyle: inter(15.5, color: palette.muted),
-                prefixIcon: Icon(Icons.search_rounded, color: palette.muted),
-                suffixIcon: _query.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear',
-                        icon: Icon(Icons.cancel_rounded, color: palette.muted),
-                        onPressed: () {
-                          _query.clear();
-                          _onQuery('');
-                        },
-                      ),
-                filled: true,
-                fillColor: _searching
-                    ? Theme.of(context).colorScheme.surface
-                    : palette.surface2,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 11),
-                border: border,
-                enabledBorder: border,
-                focusedBorder: border,
-              ),
-            ),
-          ),
-          if (_searching)
-            TextButton(
-              onPressed: _cancelSearch,
-              style: TextButton.styleFrom(
-                  foregroundColor: palette.accent,
-                  textStyle: inter(16, weight: FontWeight.w500)),
-              child: const Text('Cancel'),
-            )
-          else
-            const SizedBox(width: 8),
         ],
       ),
     );
@@ -287,19 +149,29 @@ class _InboxPageState extends State<InboxPage> {
         break;
     }
     final entries = state.entries.where((e) => e.isGroup == _groups).toList();
-    if (entries.isEmpty && !_groups) {
+    if (entries.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           const SizedBox(height: 100),
-          SoftMessage(
-            icon: Icons.forum_rounded,
-            title: 'No messages yet',
-            body: 'Start a conversation with anyone on MINT.',
-            action: 'New message',
-            filledAction: true,
-            onAction: () => context.push(AppRoutes.newMessage),
-          ),
+          _groups
+              ? SoftMessage(
+                  icon: Icons.groups_rounded,
+                  title: 'No groups yet',
+                  body: 'Start a group to talk with several people at once.',
+                  action: 'New group',
+                  filledAction: true,
+                  onAction: () =>
+                      context.push('${AppRoutes.newMessage}?group=1'),
+                )
+              : SoftMessage(
+                  icon: Icons.forum_rounded,
+                  title: 'No messages yet',
+                  body: 'Start a conversation with anyone on MINT.',
+                  action: 'New message',
+                  filledAction: true,
+                  onAction: () => context.push(AppRoutes.newMessage),
+                ),
         ],
       );
     }
@@ -314,51 +186,6 @@ class _InboxPageState extends State<InboxPage> {
             onTap: () => context.push(AppRoutes.chatFor(entry.conversationId)),
             onLongPress: () => _showActions(entry),
           ),
-        if (_groups)
-          _NewGroupCard(
-              onTap: () => context.push('${AppRoutes.newMessage}?group=1')),
-      ],
-    );
-  }
-
-  Widget _results(BuildContext context, InboxState state) {
-    final palette = context.palette;
-    final q = _query.text.trim();
-    if (q.isEmpty) return const SizedBox.shrink();
-    final hits = searchInbox(state.entries, q, state.userId);
-    if (hits.isEmpty && _people.isEmpty) {
-      return ListView(children: [
-        const SizedBox(height: 90),
-        SoftMessage(
-          icon: Icons.search_off_rounded,
-          title: 'No results for “$q”',
-          body: 'Try a name or a word from the message.',
-        ),
-      ]);
-    }
-    Widget label(String text) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-          child: Text(text,
-              style: inter(13, weight: FontWeight.w600, color: palette.muted)),
-        );
-    return ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      children: [
-        if (_people.isNotEmpty) ...[
-          label('People'),
-          for (final p in _people)
-            _PersonRow(profile: p, onTap: () => _openPerson(p)),
-        ],
-        if (hits.isNotEmpty) ...[
-          label('Messages'),
-          for (final e in hits)
-            InboxRow(
-              entry: e,
-              myUserId: state.userId,
-              highlight: q,
-              onTap: () => context.push(AppRoutes.chatFor(e.conversationId)),
-            ),
-        ],
       ],
     );
   }
@@ -465,7 +292,6 @@ class InboxRow extends StatelessWidget {
     required this.myUserId,
     required this.onTap,
     this.onLongPress,
-    this.highlight,
     super.key,
   });
 
@@ -473,9 +299,6 @@ class InboxRow extends StatelessWidget {
   final String? myUserId;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-
-  /// Bolds this text inside the last message (search results).
-  final String? highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +319,7 @@ class InboxRow extends StatelessWidget {
           child: Row(
             children: [
               entry.isGroup
-                  ? GroupAvatar(names: [entry.displayName, ..._otherInitials()])
+                  ? GroupAvatar(names: entry.groupAvatarNames(myUserId))
                   : UserAvatar(
                       name: entry.displayName,
                       radius: 26,
@@ -538,20 +361,13 @@ class InboxRow extends StatelessWidget {
                           const SizedBox(width: 4),
                         ],
                         Expanded(
-                          child: highlight == null
-                              ? Text(preview,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: previewStyle.copyWith(
-                                      fontStyle: entry.lastMessageDeleted
-                                          ? FontStyle.italic
-                                          : null))
-                              : _Highlighted(
-                                  text: preview,
-                                  match: highlight!,
-                                  style: previewStyle,
-                                  matchColor: onSurface,
-                                ),
+                          child: Text(preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: previewStyle.copyWith(
+                                  fontStyle: entry.lastMessageDeleted
+                                      ? FontStyle.italic
+                                      : null)),
                         ),
                         if (entry.isMuted)
                           Padding(
@@ -578,115 +394,6 @@ class InboxRow extends StatelessWidget {
 
   /// A second initial for the group avatar: the last sender is unknown here,
   /// so use the next letter of the title for variety.
-  List<String> _otherInitials() {
-    final words = entry.displayName.split(RegExp(r'\s+'));
-    return [words.length > 1 ? words[1] : entry.displayName];
-  }
-}
-
-class _Highlighted extends StatelessWidget {
-  const _Highlighted({
-    required this.text,
-    required this.match,
-    required this.style,
-    required this.matchColor,
-  });
-
-  final String text;
-  final String match;
-  final TextStyle style;
-  final Color matchColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final i = text.toLowerCase().indexOf(match.toLowerCase());
-    if (i < 0) {
-      return Text(text,
-          maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
-    }
-    return Text.rich(
-      TextSpan(style: style, children: [
-        TextSpan(text: text.substring(0, i)),
-        TextSpan(
-            text: text.substring(i, i + match.length),
-            style: TextStyle(fontWeight: FontWeight.w600, color: matchColor)),
-        TextSpan(text: text.substring(i + match.length)),
-      ]),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-class _PersonRow extends StatelessWidget {
-  const _PersonRow({required this.profile, required this.onTap});
-
-  final Profile profile;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            UserAvatar(name: profile.username, radius: 22),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(profile.username,
-                      style:
-                          inter(16, weight: FontWeight.w500, color: onSurface)),
-                  Text(profile.role.displayName,
-                      style: inter(13, color: palette.muted)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NewGroupCard extends StatelessWidget {
-  const _NewGroupCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Material(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(Icons.group_add_rounded, color: palette.accent),
-                const SizedBox(width: 14),
-                Text('New group',
-                    style: inter(16,
-                        weight: FontWeight.w500, color: palette.accent)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _InboxSkeleton extends StatelessWidget {

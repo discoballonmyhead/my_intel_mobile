@@ -42,12 +42,18 @@ class MessagingRepositoryImpl implements MessagingRepository {
       {int limit = 30, DateTime? before}) {
     return guard(() async {
       final rows = await _remote.fetchInbox(limit: limit, before: before);
-      final profiles = await runRpc(() => _profiles
-          .profilesByIds(rows.map((r) => r['other_user_id'] as String?)));
+      // The other person in a chat, and who last wrote in a group.
+      final profiles = await runRpc(() => _profiles.profilesByIds([
+            for (final r in rows) ...[
+              r['other_user_id'] as String?,
+              if (r['kind'] == 'group') r['last_message_sender_id'] as String?,
+            ],
+          ]));
       final entries = <InboxEntry>[];
       for (final row in rows) {
         InboxEntry entry = InboxEntryModel.fromJson(row,
-            otherProfile: profiles[row['other_user_id'] as String?]);
+            otherProfile: profiles[row['other_user_id'] as String?],
+            lastSender: profiles[row['last_message_sender_id'] as String?]);
         if (row['last_message_kind'] == 'e2ee') {
           entry = entry.copyWith(lastMessageBody: await _previewOf(row));
         } else if (row['last_message_kind'] == 'system') {

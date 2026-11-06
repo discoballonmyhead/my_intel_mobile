@@ -14,4 +14,4 @@ tags: [messages]
 - tapOn: "Back"
 - assertVisible: "To: Search people"
 - tapOn: "Back"
-- assertVisible: "Search messages and people"
+- assertVisible: "(?s)Chats.*"
