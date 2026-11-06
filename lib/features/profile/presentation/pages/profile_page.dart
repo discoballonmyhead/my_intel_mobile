@@ -31,7 +31,6 @@ List<Post> searchPosts(List<Post> posts, String query) {
   ];
 }
 
-
 /// The signed-in user's own profile: a calm header, then their posts and
 /// saved posts drawn exactly like the Feed. Search filters their own posts.
 class ProfilePage extends StatefulWidget {
@@ -67,7 +66,6 @@ class _ProfilePageState extends State<ProfilePage> {
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Link copied.')));
   }
-
 
   /// "Repost with a comment" from the profile's own lists.
   Future<void> _quote(ProfileCubit cubit, Post post) async {
@@ -106,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ]);
             } else if (!ready) {
-              body = const _ProfileSkeleton();
+              body = const ProfileSkeleton();
             } else {
               body = RefreshIndicator(
                 onRefresh: cubit.refresh,
@@ -392,8 +390,9 @@ class _Tabs extends StatelessWidget {
   }
 }
 
-class _ProfileSkeleton extends StatelessWidget {
-  const _ProfileSkeleton();
+/// Placeholder while a profile loads (yours or someone else's).
+class ProfileSkeleton extends StatelessWidget {
+  const ProfileSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {

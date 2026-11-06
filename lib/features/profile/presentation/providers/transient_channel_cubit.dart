@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mint/core/constants/user_role.dart';
 import 'package:mint/core/error/failures.dart';
+import 'package:mint/core/utils/result.dart';
 import 'package:mint/features/credibility/domain/entities/credibility_report.dart';
 import 'package:mint/features/credibility/domain/usecases/get_credibility.dart';
 import 'package:mint/features/feed/domain/entities/post.dart';
+import 'package:mint/features/feed/domain/post_updates.dart';
 import 'package:mint/features/feed/domain/usecases/get_feed.dart';
+import 'package:mint/features/feed/domain/usecases/toggle_interaction.dart';
 import 'package:mint/features/profile/domain/entities/profile.dart';
 import 'package:mint/features/profile/domain/usecases/get_profile.dart';
 import 'package:mint/features/profile/domain/usecases/toggle_follow.dart';
@@ -70,18 +75,33 @@ class ChannelCubit extends Cubit<ChannelState> {
     required GetPostsByAuthor getPostsByAuthor,
     required SetFollowing setFollowing,
     required GetCredibility getCredibility,
+    ToggleLike? toggleLike,
+    ToggleSave? toggleSave,
+    ToggleRepost? toggleRepost,
+    PostUpdates? postUpdates,
   })  : _getProfileByUsername = getProfileByUsername,
         _getFollowStats = getFollowStats,
         _getPostsByAuthor = getPostsByAuthor,
         _setFollowing = setFollowing,
         _getCredibility = getCredibility,
-        super(const ChannelState());
+        _toggleLike = toggleLike,
+        _toggleSave = toggleSave,
+        _toggleRepost = toggleRepost,
+        _postUpdates = postUpdates,
+        super(const ChannelState()) {
+    _updatesSub = postUpdates?.stream.listen(_replace);
+  }
 
   final GetProfileByUsername _getProfileByUsername;
   final GetFollowStats _getFollowStats;
   final GetPostsByAuthor _getPostsByAuthor;
   final SetFollowing _setFollowing;
   final GetCredibility _getCredibility;
+  final ToggleLike? _toggleLike;
+  final ToggleSave? _toggleSave;
+  final ToggleRepost? _toggleRepost;
+  final PostUpdates? _postUpdates;
+  StreamSubscription<Post>? _updatesSub;
 
   /// Bumped on every tap so only the latest response is applied.
   int _followToken = 0;
@@ -105,8 +125,9 @@ class ChannelCubit extends Cubit<ChannelState> {
     ]);
     if (isClosed) return;
 
-    final report =
-        results.length > 2 ? results[2].valueOrNull as CredibilityReport? : null;
+    final report = results.length > 2
+        ? results[2].valueOrNull as CredibilityReport?
+        : null;
     emit(state.copyWith(
       profile: report == null ? profile : profile.copyWith(score: report.score),
       stats: results[0].valueOrNull as FollowStats? ?? const FollowStats(),
@@ -141,10 +162,68 @@ class ChannelCubit extends Cubit<ChannelState> {
     if (isClosed || token != _followToken) return;
 
     result.fold(
-      (failure) => emit(state.copyWith(stats: previous, followFailure: failure)),
+      (failure) =>
+          emit(state.copyWith(stats: previous, followFailure: failure)),
       (stats) => emit(state.copyWith(stats: stats)),
     );
   }
 
   void clearFollowFailure() => emit(state.copyWith(clearFollowFailure: true));
+
+  // ── Post actions (same use cases as the Feed and your own Profile) ──
+
+  Future<void> toggleLike(Post post) => _optimistic(
+        post.copyWith(
+          liked: !post.liked,
+          likes:
+              post.liked ? (post.likes - 1).clamp(0, 1 << 30) : post.likes + 1,
+        ),
+        post,
+        _toggleLike == null ? null : () => _toggleLike(post),
+      );
+
+  Future<void> toggleSave(Post post) => _optimistic(
+        post.copyWith(saved: !post.saved),
+        post,
+        _toggleSave == null ? null : () => _toggleSave(post),
+      );
+
+  Future<void> toggleRepost(Post post, {String? quote}) => _optimistic(
+        post.copyWith(
+          reposted: !post.reposted,
+          repostCount: post.reposted
+              ? (post.repostCount - 1).clamp(0, 1 << 30)
+              : post.repostCount + 1,
+        ),
+        post,
+        _toggleRepost == null
+            ? null
+            : () => _toggleRepost(ToggleRepostParams(post: post, quote: quote)),
+      );
+
+  /// Shows [preview] straight away, then the server's answer; restores
+  /// [original] if the action fails.
+  Future<void> _optimistic(Post preview, Post original,
+      Future<Result<Post>> Function()? action) async {
+    if (action == null) return;
+    _replace(preview);
+    final result = await action();
+    if (isClosed) return;
+    final updated = result.valueOrNull;
+    _replace(updated ?? original);
+    if (updated != null) _postUpdates?.publish(updated);
+  }
+
+  /// Keeps this list in step with the Feed and other screens.
+  void _replace(Post post) {
+    if (isClosed || !state.posts.any((p) => p.id == post.id)) return;
+    emit(state.copyWith(
+        posts: [for (final p in state.posts) p.id == post.id ? post : p]));
+  }
+
+  @override
+  Future<void> close() {
+    _updatesSub?.cancel();
+    return super.close();
+  }
 }

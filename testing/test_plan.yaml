@@ -512,6 +512,45 @@ features:
           - Follow back / Following buttons; empty states with Find people
         automation: .maestro/profile/followers.yaml
 
+  - id: profile.other
+    area: Profile
+    name: Someone else's profile
+    status: ready
+    cases:
+      - id: profile.other.view
+        title: Open someone else's profile
+        steps: [Tap a name on a Feed post, comment, story source, Followers list, Search result or in Messages]
+        expected:
+          - The same halo header as your profile, with "OSINT analyst · Follows you" under the name
+          - 128 followers · 64 following · 320 aura (cred for analysts); followers and following open their lists
+          - Follow (red) and ✉ Message; Message opens your chat with them
+          - Their posts look like the Feed (photos, like, reply, repost, save); "No posts yet" when there are none
+          - Tapping your own name opens your Profile tab instead
+        automation: .maestro/profile/other_profile.yaml
+      - id: profile.other.follow
+        title: Follow and unfollow
+        steps: [Tap Follow, then Following]
+        expected:
+          - Follow turns into a grey "✓ Following" at once and followers goes up by one; tapping again undoes it
+          - Offline, it switches back and says why
+        automation: manual
+        note: Changes who you follow.
+      - id: profile.other.menu
+        title: The ⋯ menu
+        expected: [Report profile (red); Open in admin only for staff]
+        automation: .maestro/profile/other_profile.yaml
+      - id: profile.other.states
+        title: Loading, not found and offline
+        expected:
+          - A placeholder while loading
+          - A deleted or renamed user shows "This profile isn’t available" with Go back
+          - Offline shows "Couldn’t load this profile" with Try again
+        automation: manual
+      - id: profile.other.logic
+        title: Follow, likes and the not-found case
+        automation: unit
+        test: test/features/profile/channel_test.dart
+
   - id: settings.main
     area: Settings
     name: Settings and its pages

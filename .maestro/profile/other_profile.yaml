@@ -1,0 +1,28 @@
+# test_plan: profile.other.view, profile.other.menu
+# Opens someone else's profile from Search (needs the user "shresth"),
+# checks the header, Follow / Message and the ⋯ menu. Follows nothing.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [profile]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Intel.*"
+- tapOn: "Search"
+- inputText: "shresth"
+- extendedWaitUntil:
+    visible: "shresth"
+    timeout: 15000
+- tapOn: "(?s)S.shresth.*"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- assertVisible: "(?s)\\d+ followers"
+- assertVisible: "Follow(ing)?"
+- assertVisible: "Posts"
+- tapOn: "More"
+- assertVisible: "Report profile"
+# Close the menu without reporting.
+- tapOn:
+    point: "50%,85%"
+- assertNotVisible: "Report profile"
+- tapOn: "Back"
