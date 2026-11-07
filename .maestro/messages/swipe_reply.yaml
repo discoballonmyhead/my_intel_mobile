@@ -1,0 +1,30 @@
+# test_plan: messages.chat.swipe_reply
+# Needs at least one conversation with a readable message. Swipes a message
+# to the right, checks the reply bar opens, then cancels; sends nothing.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- extendedWaitUntil:
+    visible:
+      id: "inbox-row"
+    timeout: 15000
+- tapOn:
+    id: "inbox-row"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "swipe-message"
+    timeout: 15000
+- swipe:
+    from:
+      id: "swipe-message"
+      index: 0
+    direction: RIGHT
+    duration: 400
+- assertVisible: "(?s)Replying to.*"
+- tapOn: "Cancel"
+- assertNotVisible: "(?s)Replying to.*"
+- tapOn: "Back"

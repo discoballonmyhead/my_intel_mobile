@@ -60,7 +60,10 @@ class AppShell extends StatelessWidget {
     Widget icon(NavDestination d, {required bool selected}) {
       final child = Icon(selected ? d.selectedIcon : d.icon);
       if (!d.showsUnreadBadge || unread == 0) return child;
+      // MINT red, matching the inbox counts and the website's unread badges.
       return Badge(
+        backgroundColor: context.palette.accent,
+        textColor: Colors.white,
         label: Text(unread > 99 ? '99+' : '$unread'),
         child: child,
       );

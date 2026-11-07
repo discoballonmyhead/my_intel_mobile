@@ -36,6 +36,7 @@ void registerMessagingModule(GetIt sl) {
     ..registerLazySingleton(() => DeleteConversation(sl()))
     ..registerLazySingleton(() => SetConversationMuted(sl()))
     ..registerLazySingleton(() => SendMessage(sl()))
+    ..registerLazySingleton(() => UploadMessageAttachment(sl()))
     ..registerLazySingleton(() => EditMessage(sl()))
     ..registerLazySingleton(() => DeleteMessage(sl()))
     ..registerLazySingleton(() => MarkConversationRead(sl()))
@@ -70,6 +71,7 @@ void registerMessagingModule(GetIt sl) {
         setMuted: sl(),
         updateGroup: sl(),
         removeMember: sl(),
+        uploadAttachment: sl(),
       ),
     )
 

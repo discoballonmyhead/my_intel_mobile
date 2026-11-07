@@ -39,6 +39,15 @@ abstract interface class MessagingRepository {
     int? replyToId,
   });
 
+  /// Stores a photo, video or file and returns the attachment to send.
+  Future<Result<MessageAttachment>> uploadAttachment({
+    required List<int> bytes,
+    required String type,
+    required String fileName,
+    String? contentType,
+    void Function(double sent)? onProgress,
+  });
+
   /// Encrypted messages are re-encrypted; others edited in place.
   Future<Result<Message>> editMessage(Message message, String body);
   Future<Result<void>> deleteMessage(int messageId, {bool forEveryone = false});

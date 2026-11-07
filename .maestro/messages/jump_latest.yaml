@@ -1,0 +1,34 @@
+# test_plan: messages.chat.jump_latest
+# Needs a conversation (the first inbox row) with more than a screen of
+# messages. Scrolls up, taps "Latest", checks the pill hides at the bottom.
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- extendedWaitUntil:
+    visible:
+      id: "inbox-row"
+    timeout: 15000
+- tapOn:
+    id: "inbox-row"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "swipe-message"
+    timeout: 15000
+- swipe:
+    direction: DOWN
+    duration: 300
+- swipe:
+    direction: DOWN
+    duration: 300
+- assertVisible:
+    id: "jump-latest"
+- tapOn:
+    id: "jump-latest"
+- waitForAnimationToEnd
+- assertNotVisible:
+    id: "jump-latest"
+- tapOn: "Back"

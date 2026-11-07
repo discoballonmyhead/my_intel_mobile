@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../../../../core/error/exceptions.dart' as ex;
 import '../../../../core/error/failure_mapper.dart';
@@ -41,14 +42,23 @@ class MessagingRepositoryImpl implements MessagingRepository {
       {int limit = 30, DateTime? before}) {
     return guard(() async {
       final rows = await _remote.fetchInbox(limit: limit, before: before);
-      final profiles = await runRpc(() => _profiles
-          .profilesByIds(rows.map((r) => r['other_user_id'] as String?)));
+      // The other person in a chat, and who last wrote in a group.
+      final profiles = await runRpc(() => _profiles.profilesByIds([
+            for (final r in rows) ...[
+              r['other_user_id'] as String?,
+              if (r['kind'] == 'group') r['last_message_sender_id'] as String?,
+            ],
+          ]));
       final entries = <InboxEntry>[];
       for (final row in rows) {
         InboxEntry entry = InboxEntryModel.fromJson(row,
-            otherProfile: profiles[row['other_user_id'] as String?]);
+            otherProfile: profiles[row['other_user_id'] as String?],
+            lastSender: profiles[row['last_message_sender_id'] as String?]);
         if (row['last_message_kind'] == 'e2ee') {
-          entry = entry.copyWith(lastMessageBody: await _previewOf(row));
+          final preview = await _previewOf(row);
+          entry = entry.copyWith(
+              lastMessageBody: preview.body,
+              lastAttachmentType: preview.attachmentType);
         } else if (row['last_message_kind'] == 'system') {
           entry = entry.copyWith(
               lastMessageBody:
@@ -62,16 +72,18 @@ class MessagingRepositoryImpl implements MessagingRepository {
     });
   }
 
-  Future<String> _previewOf(Map<String, dynamic> row) async {
+  static const _sealed = (body: '🔒 Encrypted message', attachmentType: null);
+
+  Future<({String body, String? attachmentType})> _previewOf(
+      Map<String, dynamic> row) async {
     final crypto = _crypto;
     final id = asInt(row['last_message_id']);
-    if (crypto == null || id == null) return '🔒 Encrypted message';
+    if (crypto == null || id == null) return _sealed;
     final cached = await crypto.peek(id);
     if (cached != null) return _payloadPreview(cached);
     final env = row['last_message_envelope'];
     final ct = row['last_message_ciphertext'] as String?;
-    if (env is! Map || ct == null || !crypto.isReady)
-      return '🔒 Encrypted message';
+    if (env is! Map || ct == null || !crypto.isReady) return _sealed;
     final opened = await crypto.open(SealedRow(
       messageId: id,
       conversationId: row['conversation_id'] as String,
@@ -79,14 +91,18 @@ class MessagingRepositoryImpl implements MessagingRepository {
       envelope: Map<String, dynamic>.from(env),
       ciphertext: ct,
     ));
-    return opened.payload == null
-        ? '🔒 Encrypted message'
-        : _payloadPreview(opened.payload!);
+    return opened.payload == null ? _sealed : _payloadPreview(opened.payload!);
   }
 
-  String _payloadPreview(MessagePayload p) => p.body.trim().isNotEmpty
-      ? p.body.trim()
-      : (p.attachments.isNotEmpty ? 'Attachment' : ' ');
+  ({String body, String? attachmentType}) _payloadPreview(MessagePayload p) {
+    if (p.body.trim().isNotEmpty) {
+      return (body: p.body.trim(), attachmentType: null);
+    }
+    final summary = attachmentSummary(_attachments(p));
+    return summary == null
+        ? (body: ' ', attachmentType: null)
+        : (body: summary.label, attachmentType: summary.type);
+  }
 
   @override
   Future<Result<int>> getUnreadTotal() => guard(_remote.fetchUnreadTotal);
@@ -222,6 +238,41 @@ class MessagingRepositoryImpl implements MessagingRepository {
   @override
   Future<Result<void>> deleteConversation(String conversationId) =>
       guard(() => _remote.deleteConversation(conversationId));
+
+  int _uploadSeq = 0;
+
+  @override
+  Future<Result<MessageAttachment>> uploadAttachment({
+    required List<int> bytes,
+    required String type,
+    required String fileName,
+    String? contentType,
+    void Function(double sent)? onProgress,
+  }) {
+    return guard(() async {
+      // `{user_id}/{ms}_{n}.{ext}`: storage only accepts uploads into the
+      // sender's own folder (same rule as post attachments).
+      final userId = _me();
+      if (userId == null) {
+        throw const ex.AuthException('You must be signed in to upload.');
+      }
+      final dot = fileName.lastIndexOf('.');
+      final ext = dot > 0 && dot < fileName.length - 1
+          ? fileName.substring(dot + 1).toLowerCase()
+          : (type == 'image'
+              ? 'jpg'
+              : type == 'video'
+                  ? 'mp4'
+                  : 'bin');
+      final path =
+          '$userId/${DateTime.now().millisecondsSinceEpoch}_${_uploadSeq++}.$ext';
+      final url = await _remote.uploadAttachment(
+          Uint8List.fromList(bytes), path, contentType,
+          onProgress: onProgress);
+      return MessageAttachment(
+          url: url, type: type, name: fileName, size: bytes.length);
+    });
+  }
 
   @override
   Future<Result<Message>> sendMessage({

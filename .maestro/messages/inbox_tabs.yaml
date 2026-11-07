@@ -1,0 +1,16 @@
+# test_plan: messages.inbox
+appId: ${APP_ID || "app.statelesslabs.mintelspace"}
+tags: [messages]
+---
+- launchApp
+- runFlow: ../subflows/login.yaml
+- tapOn: "(?s)Messages.*Tab.*"
+- assertVisible: "(?s)Chats.*"
+- tapOn: "(?s)Groups.*"
+# On the Groups tab ✎ starts a group; there is no separate New group row.
+- tapOn: "New group"
+- assertVisible: "Next"
+- tapOn: "Back"
+- tapOn: "(?s)Chats.*"
+- assertVisible: "New message"
+- assertVisible: "(?s)Chats.*"
