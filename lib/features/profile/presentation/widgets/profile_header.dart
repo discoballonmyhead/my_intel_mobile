@@ -6,14 +6,17 @@ import 'edit_profile_sheet.dart';
 import 'profile_ui.dart';
 
 /// Initial on a soft red halo, the username, About me, one line of numbers
-/// (followers and following open their lists) and Edit profile.
+/// (followers and following open their lists) and Edit profile. Someone
+/// else's profile passes [subtitle] and [actions] (Follow, Message) instead.
 class ProfileHeader extends StatelessWidget {
   const ProfileHeader({
     required this.profile,
     required this.stats,
     required this.onFollowers,
     required this.onFollowing,
-    required this.onEdit,
+    this.onEdit,
+    this.subtitle,
+    this.actions,
     this.bio,
     this.onCredibility,
     super.key,
@@ -24,7 +27,13 @@ class ProfileHeader extends StatelessWidget {
   final String? bio;
   final VoidCallback onFollowers;
   final VoidCallback onFollowing;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
+
+  /// Under the name, e.g. "OSINT analyst · Follows you".
+  final String? subtitle;
+
+  /// Replaces Edit profile.
+  final Widget? actions;
 
   /// Opens the credibility breakdown (analysts with a loaded report).
   final VoidCallback? onCredibility;
@@ -77,7 +86,8 @@ class ProfileHeader extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Text(initial,
-                    style: inter(30, weight: FontWeight.w600, color: palette.accent)),
+                    style: inter(30,
+                        weight: FontWeight.w600, color: palette.accent)),
               ),
             ],
           ),
@@ -89,6 +99,15 @@ class ProfileHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: inter(22, weight: FontWeight.w600, color: onSurface)),
         ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(subtitle!,
+                textAlign: TextAlign.center,
+                style: inter(13, color: palette.muted)),
+          ),
+        ],
         if (kAboutMeEnabled) ...[
           const SizedBox(height: 8),
           if (bio case final text? when text.trim().isNotEmpty)
@@ -98,13 +117,14 @@ class ProfileHeader extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: inter(15, color: onSurface, height: 1.45)),
             )
-          else
+          else if (onEdit != null)
             InkWell(
               onTap: onEdit,
               child: Padding(
                 padding: const EdgeInsets.all(4),
                 child: Text('+ Add a short bio',
-                    style: inter(15, weight: FontWeight.w500, color: palette.muted)),
+                    style: inter(15,
+                        weight: FontWeight.w500, color: palette.muted)),
               ),
             ),
         ],
@@ -118,17 +138,26 @@ class ProfileHeader extends StatelessWidget {
             stat('${stats.following} following', onFollowing),
             dot(),
             stat('${profile.auraPoints} aura', null),
-            if (profile.isAnalyst) ...[dot(), stat('${profile.score} cred', onCredibility)],
+            if (profile.isAnalyst) ...[
+              dot(),
+              stat('${profile.score} cred', onCredibility)
+            ],
           ],
         ),
-        TextButton(
-          onPressed: onEdit,
-          style: TextButton.styleFrom(
-            foregroundColor: palette.accent,
-            textStyle: inter(15, weight: FontWeight.w500),
+        if (actions != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: actions,
+          )
+        else if (onEdit != null)
+          TextButton(
+            onPressed: onEdit,
+            style: TextButton.styleFrom(
+              foregroundColor: palette.accent,
+              textStyle: inter(15, weight: FontWeight.w500),
+            ),
+            child: const Text('Edit profile'),
           ),
-          child: const Text('Edit profile'),
-        ),
       ],
     );
   }

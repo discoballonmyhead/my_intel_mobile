@@ -243,6 +243,10 @@ class Injection {
           getPostsByAuthor: sl(),
           setFollowing: sl(),
           getCredibility: sl(),
+          toggleLike: sl(),
+          toggleSave: sl(),
+          toggleRepost: sl(),
+          postUpdates: sl(),
         ));
 
     // ── New feature modules ──

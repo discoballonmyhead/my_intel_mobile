@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/user_role.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/responsive/responsive_scope.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/confidence_ring.dart';
@@ -203,10 +205,20 @@ class _SourceCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(author?.username ?? 'Unknown',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    // The name opens their profile, like on Feed posts.
+                    child: GestureDetector(
+                      onTap: author == null
+                          ? null
+                          : () => context
+                              .push(AppRoutes.channelFor(author.username)),
+                      child: Text(author?.username ?? 'Unknown',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
                 ),
                 if (details.isNotEmpty)
                   Text(details,
