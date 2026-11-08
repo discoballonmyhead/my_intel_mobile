@@ -51,13 +51,15 @@ class DbTables {
 }
 
 /// `public` schema functions callable through PostgREST rpc().
+/// The old names (extract_keywords, find_similar_posts, …) are dropped by
+/// migration 24; these are the current ones.
 class DbRpc {
   const DbRpc._();
-  static const String extractKeywords = 'extract_keywords';
-  static const String keywordOverlapScore = 'keyword_overlap_score';
-  static const String findSimilarPosts = 'find_similar_posts';
-  static const String findSimilarStories = 'find_similar_stories';
-  static const String upsertAuraPoints = 'upsert_aura_points';
+  static const String extractKeywords = 'nlp_extract_keywords';
+  static const String keywordOverlapScore = 'nlp_keyword_overlap_score';
+  static const String findSimilarPosts = 'search_similar_posts';
+  static const String findSimilarStories = 'search_similar_stories';
+  static const String upsertAuraPoints = 'gamification_upsert_aura';
 }
 
 class StorageBuckets {
@@ -121,44 +123,27 @@ class E2eeRpc {
   static const String backupPut = 'e2ee_backup_put';
   static const String backupRestore = 'e2ee_backup_restore';
   static const String backupDelete = 'e2ee_backup_delete';
+  // migration 20: which conversations this account still belongs to, so the
+  // phone can drop keys and cached text of chats it left or that were deleted
+  static const String myConversationIds = 'msg_my_conversation_ids';
+  // migration 23: governance key (every message also sealed to it)
+  static const String governance = 'e2ee_governance';
 }
 
-/// RPCs for user reports and the moderator queue (migration 05).
+/// OSINT analyst applications (migration 20).
+class OsintRpc {
+  const OsintRpc._();
+  static const String apply = 'osint_apply';
+  static const String myApplication = 'osint_get_my_application';
+}
+
+/// RPCs for filing reports and following their outcome (migration 05).
+/// The moderator queue lives in the admin app (`features/admin`).
 class ReportRpc {
   const ReportRpc._();
   static const String report = 'mod_report';
   static const String reportMessage = 'mod_report_message';
   static const String myReports = 'mod_get_my_reports';
-  static const String queue = 'mod_get_report_queue';
-  static const String forTarget = 'mod_get_reports_for_target';
-  static const String claimTarget = 'mod_claim_target';
-  static const String resolveTarget = 'mod_resolve_target';
-  static const String removePost = 'mod_remove_post';
-  static const String restorePost = 'mod_restore_post';
-  static const String setPostVisibility = 'mod_set_post_visibility';
-  static const String removeMessage = 'mod_remove_message';
-  static const String warnUser = 'mod_warn_user';
-  static const String removeComment = 'mod_remove_comment';
-  static const String restoreComment = 'mod_restore_comment';
-}
-
-/// RPCs for the admin console (migration 06 + 07).
-class AdminRpc {
-  const AdminRpc._();
-  static const String approveOsint = 'admin_approve_osint';
-  static const String declineOsint = 'admin_decline_osint';
-  static const String revokeOsint = 'admin_revoke_osint';
-  static const String osintApplications = 'admin_get_osint_applications';
-  static const String grantRole = 'admin_grant_role';
-  static const String revokeRole = 'admin_revoke_role';
-  static const String banUser = 'admin_ban_user';
-  static const String unbanUser = 'admin_unban_user';
-  static const String liftSanction = 'admin_lift_sanction';
-  static const String users = 'admin_get_users';
-  static const String userDetail = 'admin_get_user_detail';
-  static const String auditLog = 'admin_get_audit_log';
-  static const String stats = 'admin_get_stats';
-  static const String deleteAccount = 'admin_delete_account';
 }
 
 /// RPCs every signed-in user calls about their own account.
@@ -207,6 +192,21 @@ class CredibilityRpc {
 }
 
 /// Story publishing shared with the web composer (migration 12).
+/// Leaning compass (migration 28). Only the signed-in user's own data.
+class LeanRpc {
+  const LeanRpc._();
+  static const String me = 'lean_get_me';
+  static const String setSettings = 'lean_set_settings';
+  static const String reset = 'lean_reset';
+}
+
+/// Ranked feed and impressions (migration 28).
+class FeedRpc {
+  const FeedRpc._();
+  static const String rank = 'feed_rank';
+  static const String logImpressions = 'feed_log_impressions';
+}
+
 class StoryRpc {
   const StoryRpc._();
   static const String publish = 'story_publish';

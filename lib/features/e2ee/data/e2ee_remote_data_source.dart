@@ -122,4 +122,14 @@ class E2eeRemoteDataSourceImpl implements E2eeRemoteDataSource {
 
   @override
   Future<void> backupDelete() => _call(E2eeRpc.backupDelete);
+
+  @override
+  Future<List<String>> myConversationIds() async {
+    final res = await _call(E2eeRpc.myConversationIds);
+    return res is List ? [for (final v in res) if (v is String) v] : const [];
+  }
+
+  @override
+  Future<Map<String, dynamic>> governance() async =>
+      asRow(await _call(E2eeRpc.governance)) ?? const {'enabled': false};
 }

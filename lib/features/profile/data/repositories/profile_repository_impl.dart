@@ -108,14 +108,6 @@ class ProfileRepositoryImpl implements ProfileRepository {
       guard(_remote.getMyApplication);
 
   @override
-  Future<Result<List<OsintApplication>>> getAllApplications() =>
-      guard(() async => _remote.getAllApplications());
-
-  @override
-  Future<Result<void>> setApplicationStatus(int applicationId, String status) =>
-      guard(() => _remote.setApplicationStatus(applicationId, status));
-
-  @override
   Future<Result<void>> awardAuraPoints(String userId, int points) =>
       guard(() => _remote.awardAuraPoints(userId, points));
 }

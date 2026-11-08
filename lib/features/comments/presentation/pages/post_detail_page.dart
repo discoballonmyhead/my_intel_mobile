@@ -21,7 +21,6 @@ import '../../../feed/presentation/widgets/post_actions_sheet.dart';
 import '../../../feed/presentation/widgets/post_card.dart';
 import '../../../feed/presentation/widgets/post_edit_history_sheet.dart';
 import '../../../moderation/domain/entities/report.dart';
-import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../../reactions/presentation/cubits/reactions_cubit.dart';
 import '../../../reactions/presentation/widgets/reaction_bar.dart';
@@ -136,13 +135,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 title: const Text('Report comment'),
                 onTap: () => Navigator.of(context).pop('report'),
               ),
-            if (isStaff && !mine && !comment.isRemoved)
-              ListTile(
-                leading: Icon(Icons.gavel_outlined,
-                    color: context.palette.accent2),
-                title: const Text('Remove (moderator)'),
-                onTap: () => Navigator.of(context).pop('mod_remove'),
-              ),
           ],
         ),
       ),
@@ -178,11 +170,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
           targetType: ReportTargetType.comment,
           targetId: '${comment.id}',
         );
-      case 'mod_remove':
-        {
-          final removed = await ModActions.removeComment(context, comment.id);
-          if (removed) cubit.markRemoved(comment);
-        }
     }
   }
 
@@ -236,14 +223,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
           targetType: ReportTargetType.post,
           targetId: '${post.id}',
         );
-      case PostAction.modRemove:
-        {
-          final removed = await ModActions.removePost(context, post.id);
-          if (removed && mounted) {
-            feed.removeLocally(post.id);
-            context.pop();
-          }
-        }
       case PostAction.viewAuthor:
         {
           final username = post.author?.username;

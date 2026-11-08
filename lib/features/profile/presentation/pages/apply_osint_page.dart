@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../account/presentation/widgets/reporter_badge_sheet.dart';
 import '../../domain/usecases/apply_for_osint.dart';
 import '../widgets/profile_ui.dart';
 
@@ -130,6 +131,18 @@ class _ApplyOsintPageState extends State<ApplyOsintPage> {
                       onPressed: _submit,
                       loading: sending),
                 ],
+                const SizedBox(height: 28),
+                Text('Are you a journalist?',
+                    textAlign: TextAlign.center,
+                    style: inter(15, weight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('Reporters write long articles and go live with their sources.',
+                    textAlign: TextAlign.center,
+                    style: inter(14, color: muted, height: 1.4)),
+                TextButton(
+                  onPressed: () => ReporterBadgeSheet.show(context),
+                  child: const Text('Request the Reporter badge'),
+                ),
               ],
             ),
           ),

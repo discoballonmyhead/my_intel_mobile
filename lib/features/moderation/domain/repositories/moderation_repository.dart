@@ -18,15 +18,6 @@ abstract interface class ModerationRepository {
 
   Future<Result<void>> deleteNote(int noteId);
 
-  /// Admin only.
-  Future<Result<List<Claim>>> getOpenClaims();
-
-  Future<Result<void>> resolveClaim({
-    required int claimId,
-    required String status,
-    String? resolutionNote,
-  });
-
   Future<Result<void>> rateNote(int noteId, String accuracyRating);
 
   Future<Result<void>> submitFeedback({

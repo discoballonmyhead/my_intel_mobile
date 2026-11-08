@@ -24,6 +24,9 @@ class AppRoutes {
 
   // Pushed routes
   static const String search = '/search';
+
+  /// The leaning compass (private to the user) and the feed filter.
+  static const String compass = '/compass';
   static const String settings = '/settings';
   static const String deleteAccount = '/settings/delete-account';
   static const String appearance = '/settings/appearance';
@@ -48,16 +51,6 @@ class AppRoutes {
   static const String myReports = '/reports';
   static const String restricted = '/restricted';
 
-  // Staff console
-  static const String admin = '/admin';
-  static const String adminUsers = '/admin/users';
-  static const String adminUser = '/admin/users/:userId';
-  static const String adminReports = '/admin/reports';
-  static const String adminReport = '/admin/reports/:type/:id';
-  static const String adminOsint = '/admin/osint';
-  static const String adminClaims = '/admin/claims';
-  static const String adminAudit = '/admin/audit';
-
   static String channelFor(String username) => '/channel/$username';
   static String postFor(int postId) => '/post/$postId';
 
@@ -68,9 +61,6 @@ class AppRoutes {
   static String chatFor(String conversationId) => '/messages/$conversationId';
   static String addMembersFor(String conversationId) =>
       '/messages/$conversationId/add';
-  static String adminUserFor(String userId) => '/admin/users/$userId';
-  static String adminReportFor(String type, String id) =>
-      '/admin/reports/$type/$id';
 
   /// Tabs shown in the bottom bar / nav rail, in order. Must match the
   /// branches in `AppRouter` and `shellDestinations`.
@@ -89,16 +79,6 @@ class AppRoutes {
     forgotPassword,
     resetPassword,
   };
-
-  /// Staff routes that moderators may NOT open (admins only).
-  static const Set<String> adminOnlyRoutes = {
-    adminOsint,
-    adminClaims,
-    adminAudit
-  };
-
-  static bool isStaffRoute(String location) =>
-      location == admin || location.startsWith('$admin/');
 }
 
 /// Named routes, useful for `goNamed` and for analytics labels.
@@ -120,6 +100,7 @@ class RouteNames {
   static const String addMembers = 'addMembers';
   static const String profile = 'profile';
   static const String search = 'search';
+  static const String compass = 'compass';
   static const String settings = 'settings';
   static const String deleteAccount = 'deleteAccount';
   static const String appearance = 'appearance';
@@ -139,12 +120,4 @@ class RouteNames {
   static const String story = 'story';
   static const String myReports = 'myReports';
   static const String restricted = 'restricted';
-  static const String admin = 'admin';
-  static const String adminUsers = 'adminUsers';
-  static const String adminUser = 'adminUser';
-  static const String adminReports = 'adminReports';
-  static const String adminReport = 'adminReport';
-  static const String adminOsint = 'adminOsint';
-  static const String adminClaims = 'adminClaims';
-  static const String adminAudit = 'adminAudit';
 }

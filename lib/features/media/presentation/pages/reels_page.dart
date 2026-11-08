@@ -8,6 +8,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../moderation/domain/entities/report.dart';
+import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../domain/entities/video.dart';
 import '../providers/media_provider.dart';
 
@@ -137,6 +139,13 @@ class _ReelTile extends StatelessWidget {
               Text(
                 '${video.viewCount}',
                 style: AppTypography.mono(size: 11, color: Colors.white),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              IconButton(
+                tooltip: 'Report video',
+                onPressed: () => ReportSheet.show(context,
+                    targetType: ReportTargetType.video, targetId: video.id),
+                icon: const Icon(Icons.flag_outlined, color: Colors.white, size: 24),
               ),
             ],
           ),

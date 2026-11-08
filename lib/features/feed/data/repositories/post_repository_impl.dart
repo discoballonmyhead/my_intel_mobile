@@ -14,6 +14,7 @@ import '../../domain/repositories/post_repository.dart';
 import '../datasources/post_remote_data_source.dart';
 import '../models/post_extras_model.dart';
 import '../models/post_model.dart';
+import '../services/feed_impressions.dart';
 
 /// Attachments and poll for a batch of posts, keyed by post id.
 typedef _Extras = ({
@@ -28,19 +29,44 @@ typedef _Extras = ({
 /// and merged here — the same strategy the web client uses, kept out of the
 /// UI entirely.
 class PostRepositoryImpl implements PostRepository {
-  PostRepositoryImpl(this._remote, this._profiles, this._service);
+  PostRepositoryImpl(this._remote, this._profiles, this._service,
+      {FeedImpressions? impressions})
+      : _impressions = impressions;
 
   final PostRemoteDataSource _remote;
   final ProfileRemoteDataSource _profiles;
   final SupabaseService _service;
+  final FeedImpressions? _impressions;
+
+  /// Post ids in ranked order plus the ranking version, or null when the
+  /// ranked feed isn't available (migration 28 not run): then the feed is
+  /// newest first, as before.
+  Future<(List<int>, String)?> _ranked(int limit) async {
+    try {
+      final rows = await _remote.rankedFeed(limit: limit);
+      if (rows.isEmpty) return null;
+      return (
+        [for (final r in rows) (r['post_id'] as num).toInt()],
+        (rows.first['version'] as String?) ?? 'v1',
+      );
+    } catch (e) {
+      dev.log('ranked feed unavailable, using newest first: $e',
+          name: 'PostRepository');
+      return null;
+    }
+  }
 
   @override
   Future<Result<List<FeedItem>>> getFeed({
     int limit = AppConstants.feedPageSize,
   }) {
     return guard(() async {
-      final rows =
-          (await _remote.fetchPosts(limit: limit)).where(_isVisible).toList();
+      final ranked = await _ranked(limit);
+      final rows = (ranked == null
+              ? await _remote.fetchPosts(limit: limit)
+              : await _remote.fetchPostsByIds(ranked.$1))
+          .where(_isVisible)
+          .toList();
       final repostRows = await _remote.fetchRecentReposts(limit: limit);
 
       // Posts referenced by reposts may not be in the first page of the feed.
@@ -77,21 +103,41 @@ class PostRepositoryImpl implements PostRepository {
         );
       }
 
-      final items = <FeedItem>[
-        ...rows.map((row) => OriginalPost(build(row))),
-        // Skip reposts of your own post — the original already shows.
-        ...repostRows.where((r) {
-          final original = repostedById[r.postId];
-          return original != null && original['author_id'] != r.userId;
-        }).map((r) => RepostedPost(
-              build(repostedById[r.postId]!),
-              repostId: r.id,
-              repostedAt: r.createdAt,
-              reposter: profiles[r.userId],
-              quote: r.quoteBody,
-            )),
-      ]..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
+      // Skip reposts of your own post — the original already shows.
+      final reposts = repostRows.where((r) {
+        final original = repostedById[r.postId];
+        return original != null && original['author_id'] != r.userId;
+      }).map((r) => RepostedPost(
+            build(repostedById[r.postId]!),
+            repostId: r.id,
+            repostedAt: r.createdAt,
+            reposter: profiles[r.userId],
+            quote: r.quoteBody,
+          ));
 
+      if (ranked == null) {
+        _impressions?.newFeed('chrono');
+        return <FeedItem>[
+          ...rows.map((row) => OriginalPost(build(row))),
+          ...reposts,
+        ]..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
+      }
+
+      // Ranked: posts in the server's order, newest reposts slotted in
+      // after every fourth post.
+      final order = {for (var i = 0; i < ranked.$1.length; i++) ranked.$1[i]: i};
+      final originals = rows.map((row) => OriginalPost(build(row))).toList()
+        ..sort((a, b) =>
+            (order[a.post.id] ?? 1 << 30).compareTo(order[b.post.id] ?? 1 << 30));
+      final queue = reposts.toList()
+        ..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
+      final items = <FeedItem>[];
+      for (var i = 0; i < originals.length; i++) {
+        items.add(originals[i]);
+        if ((i + 1) % 4 == 0 && queue.isNotEmpty) items.add(queue.removeAt(0));
+      }
+      items.addAll(queue);
+      _impressions?.newFeed(ranked.$2);
       return items;
     });
   }

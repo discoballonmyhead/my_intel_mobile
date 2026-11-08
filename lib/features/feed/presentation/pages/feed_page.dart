@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/config/env.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/mint_logo.dart';
@@ -22,9 +23,11 @@ import '../../../moderation/domain/entities/report.dart';
 import '../../../profile/presentation/providers/profile_cubit.dart';
 import '../../../reactions/presentation/cubits/reactions_cubit.dart';
 import '../../../reactions/presentation/widgets/reaction_bar.dart';
-import '../../../moderation/presentation/widgets/mod_actions.dart';
 import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../../comments/presentation/pages/post_detail_page.dart';
+import '../../../lean/domain/lean.dart';
+import '../../../lean/presentation/cubits/lean_cubit.dart';
+import '../../../lean/presentation/widgets/compass_view.dart';
 import '../../domain/entities/post.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/composer_sheet.dart';
@@ -137,7 +140,8 @@ class _FeedPageState extends State<FeedPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Posted.' : provider.failure?.message ?? 'Post failed.'),
+        content:
+            Text(ok ? 'Posted.' : provider.failure?.message ?? 'Post failed.'),
       ),
     );
   }
@@ -166,9 +170,12 @@ class _FeedPageState extends State<FeedPage> {
   /// "Repost with a comment": write the comment, then repost with it.
   Future<void> _quote(Post post) async {
     final me = context.read<ProfileCubit>().state.profile;
-    final comment = await QuoteComposer.show(context, post, username: me?.username);
+    final comment =
+        await QuoteComposer.show(context, post, username: me?.username);
     if (comment == null || !mounted) return;
-    await context.read<FeedProvider>().toggleRepost(post, quote: comment, me: me);
+    await context
+        .read<FeedProvider>()
+        .toggleRepost(post, quote: comment, me: me);
   }
 
   Future<void> _openActions(Post post) async {
@@ -188,8 +195,11 @@ class _FeedPageState extends State<FeedPage> {
           if (body == null || !mounted) return;
           final ok = await provider.editPost(post, body);
           if (!mounted) return;
-          AppDialogs.snack(context,
-              ok ? 'Post updated.' : provider.failure?.message ?? 'Edit failed.');
+          AppDialogs.snack(
+              context,
+              ok
+                  ? 'Post updated.'
+                  : provider.failure?.message ?? 'Edit failed.');
         }
       case PostAction.delete:
         {
@@ -203,8 +213,11 @@ class _FeedPageState extends State<FeedPage> {
           if (!confirmed || !mounted) return;
           final ok = await provider.deletePost(post);
           if (!mounted) return;
-          AppDialogs.snack(context,
-              ok ? 'Post deleted.' : provider.failure?.message ?? 'Delete failed.');
+          AppDialogs.snack(
+              context,
+              ok
+                  ? 'Post deleted.'
+                  : provider.failure?.message ?? 'Delete failed.');
         }
       case PostAction.history:
         await PostEditHistorySheet.show(context, post);
@@ -214,11 +227,6 @@ class _FeedPageState extends State<FeedPage> {
           targetType: ReportTargetType.post,
           targetId: '${post.id}',
         );
-      case PostAction.modRemove:
-        {
-          final removed = await ModActions.removePost(context, post.id);
-          if (removed && mounted) provider.removeLocally(post.id);
-        }
       case PostAction.viewAuthor:
         {
           final username = post.author?.username;
@@ -262,6 +270,7 @@ class _FeedPageState extends State<FeedPage> {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
+              provider.markShown(item.post.id, index);
               final key = switch (item) {
                 RepostedPost(:final repostId) => 'r$repostId',
                 _ => 'p${item.post.id}',
@@ -325,6 +334,7 @@ class _FeedPageState extends State<FeedPage> {
                       alignment: Alignment.center,
                       children: [
                         const MintLogo(height: 30, animate: false),
+                        const Positioned(left: 6, child: _CompassButton()),
                         Positioned(
                           right: 6,
                           child: IconButton(
@@ -372,6 +382,59 @@ class _FeedPageState extends State<FeedPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Opens "Your compass". Shows the user's dot; a red frame when the feed
+/// filter is on. The feed tab is always mounted, so this is also where the
+/// compass refreshes when the app opens or comes back to the foreground.
+class _CompassButton extends StatefulWidget {
+  const _CompassButton();
+
+  @override
+  State<_CompassButton> createState() => _CompassButtonState();
+}
+
+class _CompassButtonState extends State<_CompassButton>
+    with WidgetsBindingObserver {
+  final LeanCubit _cubit = sl<LeanCubit>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _cubit.refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _cubit.refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<LeanCubit, LeanState>(
+      bloc: _cubit,
+      builder: (context, state) {
+        final status = state.status;
+        final active = status.enabled && status.mode != LeanMode.off;
+        return IconButton(
+          tooltip: active ? 'Compass (feed filter on)' : 'Your compass',
+          onPressed: () => context.push(AppRoutes.compass),
+          icon: status.enabled
+              ? MiniCompass(
+                  position: status.hasPosition ? status.position : null,
+                  active: active)
+              : const Icon(Icons.explore_outlined),
+        );
+      },
     );
   }
 }
@@ -484,7 +547,8 @@ class _NewPostsPill extends StatelessWidget {
       curve: Curves.easeOut,
       builder: (context, t, child) => Opacity(
         opacity: t,
-        child: Transform.translate(offset: Offset(0, -10 * (1 - t)), child: child),
+        child:
+            Transform.translate(offset: Offset(0, -10 * (1 - t)), child: child),
       ),
       child: Material(
         color: palette.accent,
@@ -520,13 +584,17 @@ class _NewPostsPill extends StatelessWidget {
                       ),
                     ),
                   ),
-                SizedBox(width: authors.isEmpty ? 0 : 8.0 - 8.0 * (authors.length - 1)),
+                SizedBox(
+                    width:
+                        authors.isEmpty ? 0 : 8.0 - 8.0 * (authors.length - 1)),
                 Icon(Icons.arrow_upward_rounded, size: 15, color: onAccent),
                 const SizedBox(width: 6),
                 Text(
                   count == 1 ? '1 new post' : '$count new posts',
                   style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600, color: onAccent),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: onAccent),
                 ),
               ],
             ),

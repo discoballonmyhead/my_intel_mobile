@@ -131,6 +131,9 @@ abstract interface class MessageCrypto {
   /// Fires when new sender keys arrived, so waiting group messages can be
   /// opened again.
   Stream<String> get keysArrived;
+
+  /// The server rotated the governance key: fetch it again before resealing.
+  void refreshGovernance();
 }
 
 /// Lets a report carry the decrypted text + franking key (moderation).

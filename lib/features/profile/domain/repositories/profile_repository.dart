@@ -40,10 +40,5 @@ abstract interface class ProfileRepository {
 
   Future<Result<OsintApplication?>> getMyApplication();
 
-  /// Admin only — RLS enforces the role check server-side.
-  Future<Result<List<OsintApplication>>> getAllApplications();
-
-  Future<Result<void>> setApplicationStatus(int applicationId, String status);
-
   Future<Result<void>> awardAuraPoints(String userId, int points);
 }

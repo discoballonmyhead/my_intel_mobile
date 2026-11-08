@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/usecases/usecase.dart';
+import '../../data/services/feed_impressions.dart';
 import '../../domain/entities/post.dart';
 import '../../domain/post_updates.dart';
 import '../../domain/usecases/create_post.dart';
@@ -30,7 +31,9 @@ class FeedProvider extends ChangeNotifier {
     required DeletePost deletePost,
     required GetFollowedUserIds getFollowedUserIds,
     PostUpdates? postUpdates,
+    FeedImpressions? impressions,
   })  : _getFeed = getFeed,
+        _impressions = impressions,
         _postUpdates = postUpdates,
         _getFollowedUserIds = getFollowedUserIds,
         _editPost = editPost,
@@ -54,6 +57,11 @@ class FeedProvider extends ChangeNotifier {
   final EditPost _editPost;
   final DeletePost _deletePost;
   final GetFollowedUserIds _getFollowedUserIds;
+  final FeedImpressions? _impressions;
+
+  /// A post scrolled into the list (counted once per loaded feed).
+  void markShown(int postId, int position) =>
+      _impressions?.shown(postId, position);
 
   StreamSubscription<Post>? _realtimeSub;
   final PostUpdates? _postUpdates;
@@ -135,6 +143,7 @@ class FeedProvider extends ChangeNotifier {
   Future<void> syncWithUser(String? userId) async {
     final wasLoaded = _status != FeedStatus.initial;
     _session++;
+    _impressions?.reset();
     _items = const [];
     _pending = const [];
     _freshIds = const {};

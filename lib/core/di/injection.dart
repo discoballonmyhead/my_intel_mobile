@@ -58,11 +58,12 @@ import 'modules/account_module.dart';
 import 'modules/comments_module.dart';
 import 'modules/e2ee_module.dart';
 import 'modules/social_module.dart';
-import 'modules/admin_module.dart';
 import 'modules/messaging_module.dart';
 import 'modules/posts_module.dart';
 import 'modules/reports_module.dart';
 import 'modules/web_parity_module.dart';
+import 'modules/lean_module.dart';
+import '../../features/feed/data/services/feed_impressions.dart';
 
 final sl = GetIt.instance; // sl stands for Service Locator
 
@@ -102,8 +103,9 @@ class Injection {
     sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
     sl.registerLazySingleton<ProfileRepository>(
         () => ProfileRepositoryImpl(sl()));
+    sl.registerLazySingleton<FeedImpressions>(() => FeedImpressions(sl()));
     sl.registerLazySingleton<PostRepository>(
-        () => PostRepositoryImpl(sl(), sl(), sl()));
+        () => PostRepositoryImpl(sl(), sl(), sl(), impressions: sl()));
     sl.registerLazySingleton<StoryRepository>(
         () => StoryRepositoryImpl(sl(), sl()));
     sl.registerLazySingleton<MediaRepository>(
@@ -164,8 +166,6 @@ class Injection {
     // Moderation
     sl.registerLazySingleton(() => GetPostModeration(sl()));
     sl.registerLazySingleton(() => SubmitNote(sl()));
-    sl.registerLazySingleton(() => GetOpenClaims(sl()));
-    sl.registerLazySingleton(() => ResolveClaim(sl()));
     sl.registerLazySingleton(() => SubmitFeedback(sl()));
     // Search
     sl.registerLazySingleton(() => SearchAll(sl()));
@@ -208,6 +208,7 @@ class Injection {
           deletePost: sl(),
           getFollowedUserIds: sl(),
           postUpdates: sl(),
+          impressions: sl(),
         ));
     sl.registerLazySingleton<StoryProvider>(() => StoryProvider(
           getStories: sl(),
@@ -226,8 +227,6 @@ class Injection {
     sl.registerLazySingleton<ModerationProvider>(() => ModerationProvider(
           getPostModeration: sl(),
           submitNote: sl(),
-          getOpenClaims: sl(),
-          resolveClaim: sl(),
           submitFeedback: sl(),
         ));
 
@@ -243,10 +242,6 @@ class Injection {
           getPostsByAuthor: sl(),
           setFollowing: sl(),
           getCredibility: sl(),
-          toggleLike: sl(),
-          toggleSave: sl(),
-          toggleRepost: sl(),
-          postUpdates: sl(),
         ));
 
     // ── New feature modules ──
@@ -257,7 +252,7 @@ class Injection {
     registerE2eeModule(sl);
     registerMessagingModule(sl);
     registerReportsModule(sl);
-    registerAdminModule(sl);
     registerWebParityModule(sl);
+    registerLeanModule(sl);
   }
 }

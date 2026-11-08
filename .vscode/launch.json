@@ -1,0 +1,35 @@
+{
+  "version": "0.14.188",
+  "configurations": [
+    {
+      "name": "App (Dev)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file",
+        "env/dev.json"
+      ]
+    },
+    {
+      "name": "App (Local)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file",
+        "env/local.json"
+      ]
+    },
+    {
+      "name": "App (Prod)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file",
+        "env/prod.json"
+      ]
+    }
+  ]
+}

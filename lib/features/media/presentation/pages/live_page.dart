@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/error/failures.dart';
@@ -6,9 +7,14 @@ import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/widgets/app_dialogs.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../account/presentation/cubits/access_cubit.dart';
+import '../../../account/presentation/widgets/reporter_badge_sheet.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
+import '../../../moderation/domain/entities/report.dart';
+import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../domain/entities/video.dart';
 import '../providers/media_provider.dart';
 
@@ -55,7 +61,23 @@ class _LivePageState extends State<LivePage> {
     controller.dispose();
 
     if (title == null || title.trim().isEmpty || !mounted) return;
-    await context.read<MediaProvider>().createStream(title);
+    final provider = context.read<MediaProvider>();
+    final ok = await provider.createStream(title.trim());
+    if (!mounted) return;
+    AppDialogs.snack(context,
+        ok ? 'Stream created. Tap START when you’re ready.' : provider.failure?.message ?? 'Couldn’t create the stream.');
+  }
+
+  /// Going live is for verified reporters and OSINT analysts.
+  Future<void> _explainBadge() async {
+    final apply = await AppDialogs.confirm(
+      context,
+      title: 'Live is for verified reporters',
+      message: 'Reporters and OSINT analysts can go live and attach their '
+          'sources. Request the Reporter badge and our team will review your work.',
+      confirmLabel: 'REQUEST',
+    );
+    if (apply && mounted) await ReporterBadgeSheet.show(context);
   }
 
   @override
@@ -63,12 +85,13 @@ class _LivePageState extends State<LivePage> {
     final provider = context.watch<MediaProvider>();
     // Fixed: Read from AuthCubit state instead of AuthProvider
     final myId = context.watch<AuthCubit>().state.user?.id;
+    final access = context.watch<AccessCubit>().state.access;
 
     return Scaffold(
       appBar: AppBar(title: const Text('LIVE')),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab-live-go-live',
-        onPressed: _createStream,
+        onPressed: access.canReportNews ? _createStream : _explainBadge,
         icon: const Icon(Icons.videocam_outlined),
         label: const Text('GO LIVE'),
       ),
@@ -96,6 +119,8 @@ class _LivePageState extends State<LivePage> {
                     isHost: stream.hostId != null && stream.hostId == myId,
                     onGoLive: () => provider.setStatus(stream, LiveStatus.live),
                     onEnd: () => provider.setStatus(stream, LiveStatus.ended),
+                    onReport: () => ReportSheet.show(context,
+                        targetType: ReportTargetType.stream, targetId: stream.id),
                   );
                 },
               ),
@@ -112,12 +137,15 @@ class _StreamTile extends StatelessWidget {
     required this.isHost,
     this.onGoLive,
     this.onEnd,
+    this.onReport,
   });
 
   final LiveStream stream;
   final bool isHost;
   final VoidCallback? onGoLive;
   final VoidCallback? onEnd;
+  final VoidCallback? onReport;
+
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +185,16 @@ class _StreamTile extends StatelessWidget {
           if (isHost)
             stream.isLive
                 ? TextButton(onPressed: onEnd, child: const Text('END'))
-                : TextButton(onPressed: onGoLive, child: const Text('START')),
+                : TextButton(onPressed: onGoLive, child: const Text('START'))
+          else
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: const Icon(Icons.more_horiz_rounded),
+              onSelected: (_) => onReport?.call(),
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'report', child: Text('Report stream')),
+              ],
+            ),
         ],
       ),
     );

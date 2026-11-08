@@ -1,17 +1,5 @@
 import 'dart:convert';
 
-/// Compile-time configuration. Nothing secret is written in the code: every
-/// value comes from `--dart-define` / `--dart-define-from-file` at build time.
-///
-/// Local setup (the file is git-ignored, see `env/README.md`):
-///   cp env/env.example.json env/dev.json   # fill in your own values
-///   flutter run --dart-define-from-file=env/dev.json
-///
-/// Only *client-safe* values belong here. The Supabase publishable key is
-/// designed to ship inside apps (row-level security protects the data), but it
-/// is still kept out of source control so it can be rotated per environment.
-/// Server secrets (service-role key, Anthropic key) live only in Supabase
-/// edge-function secrets and must never be passed to the app.
 class Env {
   const Env._();
 
@@ -33,6 +21,13 @@ class Env {
     'WEB_APP_URL',
     defaultValue: 'https://signit-app.vercel.app',
   );
+
+  /// Public Ed25519 key of the governance root (admin app → Governance →
+  /// "Root key"). Optional: when set, the app only accepts governance keys
+  /// signed by it; when empty it trusts the first root it sees on this
+  /// phone and refuses any later change. Public value, safe in the build.
+  static const String governanceRootKey =
+      String.fromEnvironment('GOVERNANCE_ROOT_KEY');
 
   static bool get isConfigured =>
       supabaseUrl.startsWith('https://') && supabasePublishableKey.isNotEmpty;

@@ -8,16 +8,6 @@ import '../../features/account/presentation/cubits/access_cubit.dart';
 import '../../features/account/presentation/cubits/delete_account_cubit.dart';
 import '../../features/account/presentation/pages/delete_account_page.dart';
 import '../../features/account/presentation/pages/restricted_page.dart';
-import '../../features/admin/presentation/cubits/admin_dashboard_cubit.dart';
-import '../../features/admin/presentation/cubits/admin_user_detail_cubit.dart';
-import '../../features/admin/presentation/cubits/admin_users_cubit.dart';
-import '../../features/admin/presentation/cubits/audit_log_cubit.dart';
-import '../../features/admin/presentation/cubits/osint_review_cubit.dart';
-import '../../features/admin/presentation/pages/admin_home_page.dart';
-import '../../features/admin/presentation/pages/admin_user_detail_page.dart';
-import '../../features/admin/presentation/pages/admin_users_page.dart';
-import '../../features/admin/presentation/pages/audit_log_page.dart';
-import '../../features/admin/presentation/pages/osint_applications_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
@@ -33,17 +23,11 @@ import '../../features/messaging/presentation/cubits/new_conversation_cubit.dart
 import '../../features/messaging/presentation/pages/chat_page.dart';
 import '../../features/messaging/presentation/pages/inbox_page.dart';
 import '../../features/messaging/presentation/pages/new_conversation_page.dart';
-import '../../features/moderation/domain/entities/report.dart';
-import '../../features/moderation/presentation/cubits/mod_queue_cubit.dart';
 import '../../features/moderation/presentation/cubits/my_reports_cubit.dart';
-import '../../features/moderation/presentation/cubits/report_detail_cubit.dart';
-import '../../features/moderation/presentation/pages/admin_dashboard_page.dart';
 import '../../features/account/presentation/pages/change_email_page.dart';
 import '../../features/account/presentation/pages/change_password_page.dart';
 import '../../features/moderation/presentation/pages/feedback_page.dart';
-import '../../features/moderation/presentation/pages/mod_queue_page.dart';
 import '../../features/moderation/presentation/pages/my_reports_page.dart';
-import '../../features/moderation/presentation/pages/report_detail_page.dart';
 import '../../features/profile/domain/entities/profile.dart';
 import '../../features/profile/presentation/cubits/follow_list_cubit.dart';
 import '../../features/profile/presentation/pages/apply_osint_page.dart';
@@ -55,6 +39,8 @@ import '../../features/profile/presentation/pages/settings_sub_pages.dart';
 import '../../features/profile/presentation/providers/profile_cubit.dart';
 import '../../features/profile/presentation/providers/transient_channel_cubit.dart';
 import '../../features/search/presentation/pages/search_page.dart';
+import '../../features/lean/presentation/cubits/lean_cubit.dart';
+import '../../features/lean/presentation/pages/compass_page.dart';
 import '../../features/shell/presentation/pages/app_shell.dart';
 import '../../features/shell/presentation/pages/not_found_page.dart';
 import '../../features/stories/presentation/pages/articles_page.dart';
@@ -196,9 +182,7 @@ class AppRouter {
                           BlocProvider<NewConversationCubit>(
                         create: (_) => sl<NewConversationCubit>(
                             param1: const NewConversationArgs()),
-                        child: NewConversationPage(
-                            startAsGroup:
-                                state.uri.queryParameters['group'] == '1'),
+                        child: const NewConversationPage(),
                       ),
                     ),
                     GoRoute(
@@ -253,6 +237,16 @@ class AppRouter {
           name: RouteNames.search,
           parentNavigatorKey: _rootKey,
           builder: (context, state) => const SearchPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.compass,
+          name: RouteNames.compass,
+          parentNavigatorKey: _rootKey,
+          // provided here so the page works whatever main.dart provides
+          builder: (context, state) => BlocProvider<LeanCubit>.value(
+            value: sl<LeanCubit>(),
+            child: const CompassPage(),
+          ),
         ),
         GoRoute(
           path: AppRoutes.settings,
@@ -403,89 +397,6 @@ class AppRouter {
             return StoryDetailPage(storyId: id);
           },
         ),
-
-        // ── Staff console (guarded in _redirect, enforced again by RPCs) ──
-        GoRoute(
-          path: AppRoutes.admin,
-          name: RouteNames.admin,
-          parentNavigatorKey: _rootKey,
-          builder: (context, state) => BlocProvider<AdminDashboardCubit>(
-            create: (_) => sl<AdminDashboardCubit>()..load(),
-            child: const AdminHomePage(),
-          ),
-          routes: [
-            GoRoute(
-              path: 'users',
-              name: RouteNames.adminUsers,
-              builder: (context, state) => BlocProvider<AdminUsersCubit>(
-                create: (_) => sl<AdminUsersCubit>()..load(),
-                child: const AdminUsersPage(),
-              ),
-              routes: [
-                GoRoute(
-                  path: ':userId',
-                  name: RouteNames.adminUser,
-                  builder: (context, state) {
-                    final userId = state.pathParameters['userId']!;
-                    return BlocProvider<AdminUserDetailCubit>(
-                      key: ValueKey('admin-user-$userId'),
-                      create: (_) =>
-                          sl<AdminUserDetailCubit>(param1: userId)..load(),
-                      child: const AdminUserDetailPage(),
-                    );
-                  },
-                ),
-              ],
-            ),
-            GoRoute(
-              path: 'reports',
-              name: RouteNames.adminReports,
-              builder: (context, state) => BlocProvider<ModQueueCubit>(
-                create: (_) => sl<ModQueueCubit>()..load(),
-                child: const ModQueuePage(),
-              ),
-              routes: [
-                GoRoute(
-                  path: ':type/:id',
-                  name: RouteNames.adminReport,
-                  builder: (context, state) {
-                    final target = ReportTarget(
-                      ReportTargetType.fromValue(state.pathParameters['type']),
-                      state.pathParameters['id']!,
-                    );
-                    return BlocProvider<ReportDetailCubit>(
-                      key: ValueKey('report-${target.type.value}-${target.id}'),
-                      create: (_) =>
-                          sl<ReportDetailCubit>(param1: target)..load(),
-                      child: const ReportDetailPage(),
-                    );
-                  },
-                ),
-              ],
-            ),
-            GoRoute(
-              path: 'osint',
-              name: RouteNames.adminOsint,
-              builder: (context, state) => BlocProvider<OsintReviewCubit>(
-                create: (_) => sl<OsintReviewCubit>()..load(),
-                child: const OsintApplicationsPage(),
-              ),
-            ),
-            GoRoute(
-              path: 'claims',
-              name: RouteNames.adminClaims,
-              builder: (context, state) => const AdminDashboardPage(),
-            ),
-            GoRoute(
-              path: 'audit',
-              name: RouteNames.adminAudit,
-              builder: (context, state) => BlocProvider<AuditLogCubit>(
-                create: (_) => sl<AuditLogCubit>()..load(),
-                child: const AuditLogPage(),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -536,21 +447,6 @@ class AppRouter {
       return location == AppRoutes.restricted ? null : AppRoutes.restricted;
     }
     if (location == AppRoutes.restricted) return AppRoutes.feed;
-
-    if (AppRoutes.isStaffRoute(location)) {
-      // Legacy profiles.role = 'admin' still counts while access loads.
-      final isAdmin = access.isAdmin || profile.isAdmin;
-      final isStaff = access.isStaff || isAdmin;
-
-      // Don't bounce a deep link before we know the user's roles; the
-      // RouterRefreshStream re-runs this once AccessCubit resolves.
-      if (!access.isResolved && !isStaff) return null;
-
-      if (!isStaff) return AppRoutes.feed;
-      if (!isAdmin && AppRoutes.adminOnlyRoutes.contains(location)) {
-        return AppRoutes.admin;
-      }
-    }
 
     return null;
   }

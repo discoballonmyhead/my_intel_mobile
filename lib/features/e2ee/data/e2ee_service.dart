@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../crypto/escrow.dart';
 import '../crypto/extras.dart';
 import '../crypto/primitives.dart';
 import '../crypto/sender_keys.dart';
@@ -37,10 +38,16 @@ class RestoreResult {
 /// Every operation runs through one queue so session state is never touched
 /// by two messages at once.
 class E2eeService implements MessageCrypto, MessageEvidenceSource {
-  E2eeService(this._api, this._store);
+  /// [pinnedGovernanceRoot]: base64 Ed25519 root from the build
+  /// (`GOVERNANCE_ROOT_KEY`); empty = trust the first root seen on this phone.
+  E2eeService(this._api, this._store, {String pinnedGovernanceRoot = ''})
+      : _pinnedRoot = pinnedGovernanceRoot.trim();
 
   final E2eeRemoteDataSource _api;
   final E2eeStore _store;
+  final String _pinnedRoot;
+  static const Duration _governanceTtl = Duration(minutes: 10);
+  (DateTime, GovernanceKey?)? _governance;
 
   static const int _oneTimePreKeyBatch = 100;
   static const int _oneTimePreKeyMinimum = 25;
@@ -344,13 +351,59 @@ class E2eeService implements MessageCrypto, MessageEvidenceSource {
           out = await own.encrypt(clear);
           await _store.put('skown:${c.conversationId}', own.toJson());
         }
+        // governance copy (migration 23), sealed to the platform key
+        final gov = await _governanceKey();
         return SealedMessage(
           ciphertext: out.ciphertext,
-          envelope: out.envelope,
+          envelope: gov == null
+              ? out.envelope
+              : {...out.envelope, 'gov': await Escrow.sealMessage(gov, c.conversationId, _userId!, clear)},
           frankingTag: franking.tag,
           frankingKey: franking.key,
         );
       });
+
+  // ── Governance key ─────────────────────────────────────────────────────
+
+  @override
+  void refreshGovernance() => _governance = null;
+
+  /// The current governance key (null when governance is off), checked
+  /// against the pinned root. Never sends a copy to a key the root didn't sign.
+  Future<GovernanceKey?> _governanceKey() async {
+    final cached = _governance;
+    if (cached != null && DateTime.now().difference(cached.$1) < _governanceTtl) return cached.$2;
+    final j = await _api.governance();
+    GovernanceKey? key;
+    if (j['enabled'] == true && j['key'] is Map) {
+      final root = j['root_public_key'] as String?;
+      if (root == null) throw const E2eeException('governance_root_missing');
+      final pinned = _pinnedRoot.isNotEmpty ? _pinnedRoot : (await _store.get('gov_root'))?['pub'] as String?;
+      if (pinned == null) {
+        await _store.put('gov_root', {'pub': root, 'at': DateTime.now().toUtc().toIso8601String()});
+      } else if (pinned != root) {
+        // someone swapped the root: refuse rather than hand copies to an unknown key
+        throw const E2eeException('governance_root_changed');
+      }
+      key = GovernanceKey.fromJson(Map<String, dynamic>.from(j['key'] as Map));
+      if (key.threshold < 2 || key.holders.length < key.threshold || !await key.verify(unb64(root))) {
+        throw const E2eeException('governance_key_invalid');
+      }
+    }
+    _governance = (DateTime.now(), key);
+    return key;
+  }
+
+  /// For the "who can read this" notice: null = governance off.
+  Future<({int threshold, int holders, String fingerprint})?> governanceInfo() async {
+    final key = await _governanceKey();
+    if (key == null) return null;
+    return (
+      threshold: key.threshold,
+      holders: key.holders.length,
+      fingerprint: await GovernanceKey.fingerprint(key.publicKey),
+    );
+  }
 
   /// Our sender key for this group and epoch, handed to every member who
   /// doesn't have it yet.
@@ -488,6 +541,46 @@ class E2eeService implements MessageCrypto, MessageEvidenceSource {
     for (final c in convs) {
       _keysArrived.add(c);
     }
+  }
+
+  // ── Conversations that are gone ───────────────────────────────────────
+
+  /// Drops the group keys and cached text of conversations this account is
+  /// no longer in: left, removed, or deleted by an admin. Pairwise sessions
+  /// belong to people, not conversations, so other chats keep working.
+  /// Returns how many conversations were cleaned up.
+  Future<int> pruneConversations() => _serial(() async {
+        if (!isReady) return 0;
+        // what's on the phone first, then what the server says: a chat that
+        // starts after the server call can't be in the first set
+        final local = <String>{
+          for (final k in await _store.keys('skown:')) k.substring('skown:'.length),
+          for (final k in await _store.keys('sk:')) k.split(':')[1],
+          for (final k in await _store.keys('skreq:')) k.split(':')[1],
+          ...await _store.plainConversations(),
+        };
+        if (local.isEmpty) return 0;
+        final active = (await _api.myConversationIds()).toSet();
+        final stale = local.difference(active);
+        for (final c in stale) {
+          await _forgetConversation(c);
+        }
+        return stale.length;
+      });
+
+  /// One conversation, e.g. when the server says it no longer exists.
+  Future<void> forgetConversation(String conversationId) =>
+      _serial(() => _forgetConversation(conversationId));
+
+  Future<void> _forgetConversation(String c) async {
+    await _store.delete('skown:$c');
+    for (final k in await _store.keys('sk:$c:')) {
+      await _store.delete(k);
+    }
+    for (final k in await _store.keys('skreq:$c:')) {
+      await _store.delete(k);
+    }
+    await _store.deletePlainFor(c);
   }
 
   Future<void> _requestSenderKey(String conv, String sender, int epoch) async {

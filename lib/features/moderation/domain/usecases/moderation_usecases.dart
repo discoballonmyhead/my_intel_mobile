@@ -49,52 +49,6 @@ class SubmitNote implements UseCase<CommunityNote, SubmitNoteParams> {
   }
 }
 
-class GetOpenClaims implements UseCase<List<Claim>, NoParams> {
-  const GetOpenClaims(this._repository);
-
-  final ModerationRepository _repository;
-
-  @override
-  Future<Result<List<Claim>>> call(NoParams params) =>
-      _repository.getOpenClaims();
-}
-
-class ResolveClaimParams {
-  const ResolveClaimParams({
-    required this.claimId,
-    required this.status,
-    this.resolutionNote,
-  });
-
-  final int claimId;
-
-  /// 'verified' | 'false' | 'reversed'
-  final String status;
-  final String? resolutionNote;
-}
-
-/// Resolving a claim fires `trg_score_on_claim`, which recomputes the author's
-/// credibility — so this is a consequential action, not a cosmetic one.
-class ResolveClaim implements UseCase<void, ResolveClaimParams> {
-  const ResolveClaim(this._repository);
-
-  static const Set<String> validStatuses = {'verified', 'false', 'reversed'};
-
-  final ModerationRepository _repository;
-
-  @override
-  Future<Result<void>> call(ResolveClaimParams params) async {
-    if (!validStatuses.contains(params.status)) {
-      return const Err(ValidationFailure('Unknown resolution status.'));
-    }
-    return _repository.resolveClaim(
-      claimId: params.claimId,
-      status: params.status,
-      resolutionNote: params.resolutionNote,
-    );
-  }
-}
-
 class SubmitFeedbackParams {
   const SubmitFeedbackParams({required this.ratings, this.comment});
   final Map<String, dynamic> ratings;

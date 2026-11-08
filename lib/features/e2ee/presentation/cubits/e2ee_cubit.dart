@@ -6,13 +6,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/e2ee_api.dart';
 import '../../data/e2ee_service.dart';
 
+typedef GovernanceNotice = ({int threshold, int holders, String fingerprint});
+
 class E2eeState extends Equatable {
   const E2eeState({
     this.setup = E2eeSetup.idle,
     this.hasBackup,
     this.busy = false,
     this.error,
+    this.governance,
   });
+
+  /// Governance key in force (migration 23): chats say so. Null = off.
+  final GovernanceNotice? governance;
 
   final E2eeSetup setup;
 
@@ -27,16 +33,25 @@ class E2eeState extends Equatable {
   /// Ready, but nothing protects the keys if this phone is lost.
   bool get shouldOfferBackup => isReady && hasBackup == false;
 
-  E2eeState copyWith({E2eeSetup? setup, bool? hasBackup, bool? busy, String? error, bool clearError = false}) =>
+  E2eeState copyWith({
+    E2eeSetup? setup,
+    bool? hasBackup,
+    bool? busy,
+    String? error,
+    bool clearError = false,
+    GovernanceNotice? governance,
+    bool clearGovernance = false,
+  }) =>
       E2eeState(
         setup: setup ?? this.setup,
         hasBackup: hasBackup ?? this.hasBackup,
         busy: busy ?? this.busy,
         error: clearError ? null : error ?? this.error,
+        governance: clearGovernance ? null : governance ?? this.governance,
       );
 
   @override
-  List<Object?> get props => [setup, hasBackup, busy, error];
+  List<Object?> get props => [setup, hasBackup, busy, error, governance];
 }
 
 /// Session-wide: sets up encryption keys at sign-in, keeps prekeys topped up,
@@ -88,7 +103,24 @@ class E2eeCubit extends Cubit<E2eeState> {
       unawaited(_service.processSenderKeys().catchError((Object _) {}));
     });
     unawaited(_service.processSenderKeys().catchError((Object _) {}));
+    // chats deleted by an admin (or left) while this phone was away
+    unawaited(_service.pruneConversations().catchError((Object _) => 0));
+    unawaited(_loadGovernance());
   }
+
+  Future<void> _loadGovernance() async {
+    try {
+      final info = await _service.governanceInfo();
+      if (isClosed) return;
+      emit(info == null ? state.copyWith(clearGovernance: true) : state.copyWith(governance: info));
+    } catch (_) {
+      // shown again next time; sending reports the problem if it persists
+    }
+  }
+
+  /// The chat screen calls this when the server says a conversation is gone.
+  Future<void> forgetConversation(String conversationId) =>
+      _service.forgetConversation(conversationId).catchError((Object _) {});
 
   /// Returns null on success, otherwise a message to show.
   Future<String?> createBackup(String pin) async {

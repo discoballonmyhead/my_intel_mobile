@@ -9,6 +9,8 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_x.dart';
 import '../../../../core/widgets/confidence_ring.dart';
+import '../../../moderation/domain/entities/report.dart';
+import '../../../moderation/presentation/widgets/report_sheet.dart';
 import '../../domain/entities/story.dart';
 import '../../domain/usecases/get_stories.dart';
 import '../widgets/intel_message.dart';
@@ -51,6 +53,14 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     });
   }
 
+  Future<void> _onMenu(String value) async {
+    switch (value) {
+      case 'report':
+        await ReportSheet.show(context,
+            targetType: ReportTargetType.story, targetId: '${widget.storyId}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final story = _story;
@@ -61,6 +71,17 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 22),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
+        actions: [
+          if (story != null)
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: const Icon(Icons.more_horiz_rounded),
+              onSelected: _onMenu,
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'report', child: Text('Report story')),
+              ],
+            ),
+        ],
       ),
       body: _loading
           ? const _StorySkeleton()

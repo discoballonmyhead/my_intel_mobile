@@ -43,3 +43,14 @@ class ValidationFailure extends Failure {
 class UnexpectedFailure extends Failure {
   const UnexpectedFailure([super.message = 'Something went wrong.']);
 }
+
+/// See [ReauthRequiredException]: sign in again (or enter a two-step code),
+/// then retry.
+class ReauthFailure extends Failure {
+  const ReauthFailure(super.message, {this.needsMfa = false});
+
+  final bool needsMfa;
+
+  @override
+  List<Object?> get props => [message, needsMfa];
+}

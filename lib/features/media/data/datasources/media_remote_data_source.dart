@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/db_constants.dart';
 import '../../../../core/error/exceptions.dart' as ex;
+import '../../../../core/network/rpc_runner.dart';
 import '../../../../core/network/supabase_service.dart';
 
 abstract interface class MediaRemoteDataSource {
@@ -95,39 +96,33 @@ class MediaRemoteDataSourceImpl implements MediaRemoteDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchActiveStreams() async {
-    final res = await _service.rpc<List<dynamic>>('stream_get_active');
-    return List<Map<String, dynamic>>.from(res ?? []);
-  }
+  Future<List<Map<String, dynamic>>> fetchActiveStreams() =>
+      runRpc(() async => asRows(await _service.rpc<dynamic>('stream_get_active')));
 
+  /// Reporters, OSINT analysts and staff only (migration 20); the server
+  /// refuses everyone else with `reporter_badge_required`.
   @override
-  Future<Map<String, dynamic>> insertStream(
-      Map<String, dynamic> payload) async {
-    try {
-      final res = await _service.rpc('stream_create', params: {
-        'p_title': payload['title'],
-        'p_description': payload['description']
+  Future<Map<String, dynamic>> insertStream(Map<String, dynamic> payload) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>('stream_create', params: {
+          'p_title': payload['title'],
+          'p_description': payload['description'],
+        });
+        return {
+          ...payload,
+          'id': res is String ? res : asRow(res)?['id'],
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        };
       });
-      return {'id': res, ...payload};
-    } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
 
   @override
   Future<Map<String, dynamic>> updateStream(
-      String streamId, Map<String, dynamic> payload) async {
-    try {
-      final res = await _service.rpc('stream_update_status',
-          params: {'p_stream_id': streamId, 'p_payload': payload});
-      return res as Map<String, dynamic>;
-    } on PostgrestException catch (e) {
-      if (e.code == '42501')
-        throw const ex.PermissionException(
-            'Only the host can change a stream.');
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
+          String streamId, Map<String, dynamic> payload) =>
+      runRpc(() async {
+        final res = await _service.rpc<dynamic>('stream_update_status',
+            params: {'p_stream_id': streamId, 'p_payload': payload});
+        return asRow(res) ?? {'id': streamId, ...payload};
+      });
 
   @override
   Stream<void> watchStreamChanges() {

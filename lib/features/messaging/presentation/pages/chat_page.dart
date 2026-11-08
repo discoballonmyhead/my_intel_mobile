@@ -224,6 +224,9 @@ class _ChatPageState extends State<ChatPage> {
           (b.actionFailure != null && a.actionFailure != b.actionFailure),
       listener: (context, state) {
         if (state.isClosedForMe) {
+          // removed from the chat, or an admin deleted it: drop its group
+          // keys and cached messages from this phone
+          context.read<E2eeCubit>().forgetConversation(state.conversationId);
           context.read<InboxCubit>().refresh();
           Navigator.of(context).popUntil((r) => r is! MaterialPageRoute);
           if (context.canPop()) {
@@ -292,6 +295,7 @@ class _ChatPageState extends State<ChatPage> {
                   if (conversation != null)
                     EncryptionNotice(
                       encrypted: conversation.isEncrypted,
+                      governance: context.watch<E2eeCubit>().state.governance,
                       waitingFor: [
                         for (final p
                             in conversation.membersWithoutKeys(state.myUserId))

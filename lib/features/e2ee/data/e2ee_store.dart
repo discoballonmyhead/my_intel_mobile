@@ -18,6 +18,12 @@ abstract interface class E2eeStore {
   Future<void> putPlain(int messageId, String conversationId, Map<String, dynamic> value);
   Future<Map<String, dynamic>?> getPlain(int messageId);
 
+  /// Conversations that have read messages cached on this phone.
+  Future<Set<String>> plainConversations();
+
+  /// Drops the cached text of one conversation.
+  Future<void> deletePlainFor(String conversationId);
+
   /// Newest first, for the key backup.
   Future<List<(int, String, Map<String, dynamic>)>> recentPlain(int limit);
 
@@ -49,6 +55,11 @@ class MemoryE2eeStore implements E2eeStore {
   @override
   Future<Map<String, dynamic>?> getPlain(int messageId) async =>
       _plain[messageId] == null ? null : Map<String, dynamic>.from(jsonDecode(_plain[messageId]!.$2) as Map);
+  @override
+  Future<Set<String>> plainConversations() async => {for (final v in _plain.values) v.$1};
+  @override
+  Future<void> deletePlainFor(String conversationId) async =>
+      _plain.removeWhere((_, v) => v.$1 == conversationId);
   @override
   Future<List<(int, String, Map<String, dynamic>)>> recentPlain(int limit) async {
     final ids = _plain.keys.toList()..sort((a, b) => b.compareTo(a));

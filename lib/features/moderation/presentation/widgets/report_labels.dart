@@ -14,6 +14,7 @@ IconData reportTargetIcon(ReportTargetType type) => switch (type) {
       ReportTargetType.communityNote => Icons.sticky_note_2_outlined,
       ReportTargetType.story => Icons.newspaper_outlined,
       ReportTargetType.comment => Icons.mode_comment_outlined,
+      ReportTargetType.article => Icons.description_outlined,
     };
 
 class ReportStatusChip extends StatelessWidget {

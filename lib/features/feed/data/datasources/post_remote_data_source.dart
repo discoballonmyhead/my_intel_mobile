@@ -13,6 +13,13 @@ import '../models/post_model.dart';
 
 abstract interface class PostRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchPosts({int limit});
+
+  /// Ranked post ids for the signed-in user (`feed_rank`, migration 28):
+  /// rows of {post_id, score, reason, version}, best first.
+  Future<List<Map<String, dynamic>>> rankedFeed({int limit});
+
+  /// Which posts were shown, for the staff feed metrics.
+  Future<void> logImpressions(List<Map<String, dynamic>> items, String version);
   Future<Map<String, dynamic>?> fetchPost(int postId);
   Future<List<Map<String, dynamic>>> fetchPostsByIds(List<int> ids);
   Future<List<Map<String, dynamic>>> fetchPostsByAuthor(String authorId,
@@ -67,6 +74,17 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
       throw ex.ServerException(e.message, code: e.code);
     }
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> rankedFeed({int limit = 50}) =>
+      runRpc(() async => asRows(await _service
+          .rpc<dynamic>(FeedRpc.rank, params: {'p_limit': limit})));
+
+  @override
+  Future<void> logImpressions(
+          List<Map<String, dynamic>> items, String version) =>
+      runRpc(() => _service.rpc<dynamic>(FeedRpc.logImpressions,
+          params: {'p_items': items, 'p_version': version}));
 
   @override
   Future<Map<String, dynamic>?> fetchPost(int postId) async {

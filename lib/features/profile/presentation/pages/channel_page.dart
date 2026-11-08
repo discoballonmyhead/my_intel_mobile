@@ -11,7 +11,6 @@ import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_dialogs.dart';
-import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
 import '../../../comments/presentation/pages/post_detail_page.dart';
 import '../../../credibility/presentation/widgets/credibility_breakdown_sheet.dart';
@@ -72,7 +71,6 @@ class ChannelPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final myId = context.select<AuthCubit, String?>((c) => c.state.user?.id);
-    final isStaff = context.select<AccessCubit, bool>((c) => c.state.isStaff);
 
     return BlocConsumer<ChannelCubit, ChannelState>(
       listenWhen: (a, b) =>
@@ -142,9 +140,6 @@ class ChannelPage extends StatelessWidget {
                             targetType: ReportTargetType.profile,
                             targetId: profile.id,
                           ),
-                  onAdmin: profile == null || !isStaff
-                      ? null
-                      : () => context.push(AppRoutes.adminUserFor(profile.id)),
                 ),
                 Expanded(child: body),
               ],
@@ -237,10 +232,9 @@ class ChannelPage extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({this.onReport, this.onAdmin});
+  const _TopBar({this.onReport});
 
   final VoidCallback? onReport;
-  final VoidCallback? onAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -258,7 +252,7 @@ class _TopBar extends StatelessWidget {
                 context.canPop() ? context.pop() : context.go(AppRoutes.feed),
           ),
           const Spacer(),
-          if (onReport != null || onAdmin != null)
+          if (onReport != null)
             PopupMenuButton<VoidCallback>(
               tooltip: 'More',
               icon: Icon(Icons.more_horiz_rounded, color: palette.muted),
@@ -270,12 +264,8 @@ class _TopBar extends StatelessWidget {
               ),
               onSelected: (action) => action(),
               itemBuilder: (_) => [
-                if (onReport != null)
-                  _menuItem(context, onReport!, Icons.flag_rounded,
-                      'Report profile', palette.accent),
-                if (onAdmin != null)
-                  _menuItem(context, onAdmin!, Icons.admin_panel_settings,
-                      'Open in admin', Theme.of(context).colorScheme.onSurface),
+                _menuItem(context, onReport!, Icons.flag_rounded,
+                    'Report profile', palette.accent),
               ],
             ),
           const SizedBox(width: 4),

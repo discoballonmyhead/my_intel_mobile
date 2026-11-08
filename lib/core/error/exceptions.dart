@@ -38,3 +38,19 @@ class CacheException implements Exception {
   const CacheException(this.message);
   final String message;
 }
+
+/// The server wants proof the staff member is still at the keyboard: a fresh
+/// password sign-in (`reauthentication_required`) or a two-step code
+/// (`mfa_required`). The admin app asks and retries the action once.
+class ReauthRequiredException implements Exception {
+  const ReauthRequiredException(this.message, {this.needsMfa = false});
+  final String message;
+  final bool needsMfa;
+}
+
+/// The governance key was rotated while this phone had the old one cached
+/// (`escrow_key_outdated`): reseal with the new key and send again.
+class StaleGovernanceKeyException implements Exception {
+  const StaleGovernanceKeyException(this.message);
+  final String message;
+}

@@ -33,5 +33,11 @@ abstract interface class E2eeRemoteDataSource {
   });
   Future<Map<String, dynamic>> backupRestore(String verifier);
   Future<void> backupDelete();
+
+  /// `e2ee_governance()` (migration 23): {enabled, root_public_key, key}.
+  Future<Map<String, dynamic>> governance();
+
+  /// Conversations this account is still a member of (migration 20).
+  Future<List<String>> myConversationIds();
 }
 

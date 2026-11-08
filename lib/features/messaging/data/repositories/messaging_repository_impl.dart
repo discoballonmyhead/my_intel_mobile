@@ -61,10 +61,11 @@ class MessagingRepositoryImpl implements MessagingRepository {
               lastAttachmentType: preview.attachmentType);
         } else if (row['last_message_kind'] == 'system') {
           entry = entry.copyWith(
-              lastMessageBody:
-                  row['last_message_body'] == 'e2ee:identity_changed'
-                      ? 'Security code changed'
-                      : 'Security update');
+              lastMessageBody: switch (row['last_message_body']) {
+                'e2ee:identity_changed' => 'Security code changed',
+                'gov:reviewed' => 'Reviewed by the safety team',
+                _ => 'Security update',
+              });
         }
         entries.add(entry);
       }
@@ -317,19 +318,25 @@ class MessagingRepositoryImpl implements MessagingRepository {
           throw const ex.ValidationException(
               'This person needs to update the app before you can send encrypted messages.');
         }
-        final sent = await _remote.sendE2ee(
-          conversationId: conversationId,
-          ciphertext: sealed.ciphertext,
-          envelope: sealed.envelope,
-          frankingTag: sealed.frankingTag,
-          replyToId: replyToId,
-        );
-        await crypto.remember(
-            sent.id, conversationId, payload, sealed.frankingKey);
-        return sent.opened(
-            body: body,
-            attachments: attachments,
-            encryption: MessageEncryption.encrypted);
+        Future<Message> post(SealedMessage s) => _remote.sendE2ee(
+              conversationId: conversationId,
+              ciphertext: s.ciphertext,
+              envelope: s.envelope,
+              frankingTag: s.frankingTag,
+              replyToId: replyToId,
+            );
+        var used = sealed;
+        Message sent;
+        try {
+          sent = await post(sealed);
+        } on ex.StaleGovernanceKeyException {
+          // the governance key was just rotated: seal again with the new one
+          crypto.refreshGovernance();
+          used = await crypto.seal(keys, payload);
+          sent = await post(used);
+        }
+        await crypto.remember(sent.id, conversationId, payload, used.frankingKey);
+        return sent.opened(body: body, attachments: attachments, encryption: MessageEncryption.encrypted);
       });
 
   @override
@@ -343,19 +350,20 @@ class MessagingRepositoryImpl implements MessagingRepository {
         }
         final (keys, _) = await _keysFor(message.conversationId);
         final payload = MessagePayload(
-            body: body,
-            attachments: [for (final a in message.attachments) a.toJson()]);
-        final sealed = await crypto.seal(keys, payload);
-        final edited = await _remote.editE2ee(message.id,
-            ciphertext: sealed.ciphertext,
-            envelope: sealed.envelope,
-            frankingTag: sealed.frankingTag);
-        await crypto.remember(
-            message.id, message.conversationId, payload, sealed.frankingKey);
-        return edited.opened(
-            body: body,
-            attachments: message.attachments,
-            encryption: MessageEncryption.encrypted);
+            body: body, attachments: [for (final a in message.attachments) a.toJson()]);
+        var sealed = await crypto.seal(keys, payload);
+        Future<Message> post(SealedMessage s) => _remote.editE2ee(message.id,
+            ciphertext: s.ciphertext, envelope: s.envelope, frankingTag: s.frankingTag);
+        Message edited;
+        try {
+          edited = await post(sealed);
+        } on ex.StaleGovernanceKeyException {
+          crypto.refreshGovernance();
+          sealed = await crypto.seal(keys, payload);
+          edited = await post(sealed);
+        }
+        await crypto.remember(message.id, message.conversationId, payload, sealed.frankingKey);
+        return edited.opened(body: body, attachments: message.attachments, encryption: MessageEncryption.encrypted);
       });
 
   @override

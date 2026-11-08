@@ -91,27 +91,6 @@ class ModerationRepositoryImpl implements ModerationRepository {
       guard(() => _remote.deleteNote(noteId));
 
   @override
-  Future<Result<List<Claim>>> getOpenClaims() {
-    return guard(() async {
-      final rows = await _remote.fetchOpenClaims();
-      return rows.map((row) => ClaimModel.fromJson(row) as Claim).toList();
-    });
-  }
-
-  @override
-  Future<Result<void>> resolveClaim({
-    required int claimId,
-    required String status,
-    String? resolutionNote,
-  }) {
-    return guard(() => _remote.updateClaim(claimId, {
-          'status': status,
-          'resolved_at': DateTime.now().toUtc().toIso8601String(),
-          'resolution_note': resolutionNote,
-        }));
-  }
-
-  @override
   Future<Result<void>> rateNote(int noteId, String accuracyRating) =>
       guard(() => _remote.rateNote(noteId, accuracyRating));
 

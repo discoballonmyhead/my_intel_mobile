@@ -30,8 +30,6 @@ abstract interface class ProfileRemoteDataSource {
   Future<List<ProfileModel>> searchProfiles(String query, {int limit});
   Future<void> submitOsintApplication(Map<String, dynamic> payload);
   Future<OsintApplicationModel?> getMyApplication();
-  Future<List<OsintApplicationModel>> getAllApplications();
-  Future<void> setApplicationStatus(int applicationId, String status);
   Future<void> awardAuraPoints(String userId, int points);
   Future<Map<String, ProfileModel>> profilesByIds(Iterable<String?> ids);
 }
@@ -118,25 +116,11 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   }
 
   @override
-  Future<OsintApplicationModel?> getMyApplication() async {
-    dev.log('getMyApplication called', name: _logName);
-    try {
-      final response = await _service.rpc('auth_get_my_osint_application');
-      final rows = response as List<dynamic>? ?? [];
-
-      if (rows.isEmpty) {
-        dev.log('getMyApplication returned null', name: _logName);
-        return null;
-      }
-
-      dev.log('getMyApplication success', name: _logName);
-      return OsintApplicationModel.fromJson(rows.first as Map<String, dynamic>);
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in getMyApplication',
-          error: e, name: _logName);
-      rethrow;
-    }
-  }
+  Future<OsintApplicationModel?> getMyApplication() => runRpc(() async {
+        // setof row: PostgREST returns a list (empty when never applied)
+        final row = asRow(await _service.rpc<dynamic>(OsintRpc.myApplication));
+        return row == null ? null : OsintApplicationModel.fromJson(row);
+      });
 
   static ({int followers, int following, bool isFollowing, bool followsYou})
       _stats(Map<String, dynamic> data) => (
@@ -239,65 +223,17 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   }
 
   @override
-  Future<void> submitOsintApplication(Map<String, dynamic> payload) async {
-    dev.log(
-        'submitOsintApplication called with payload keys: ${payload.keys.join(',')}',
-        name: _logName);
-    try {
-      await _service.rpc('auth_apply_osint', params: {
-        'p_channel_name': payload['channel_name'],
-        'p_handle': payload['handle'],
-        'p_portfolio': payload['portfolio'],
-        'p_why': payload['why'],
+  Future<void> submitOsintApplication(Map<String, dynamic> payload) =>
+      runRpc(() async {
+        dev.log('submitOsintApplication', name: _logName);
+        await _service.rpc<dynamic>(OsintRpc.apply, params: {
+          'p_channel_name': payload['channel_name'],
+          'p_handle': payload['handle'],
+          'p_portfolio': payload['portfolio'],
+          'p_why': payload['why'],
+        });
       });
-      dev.log('submitOsintApplication success', name: _logName);
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in submitOsintApplication',
-          error: e, name: _logName);
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
 
-  @override
-  Future<List<OsintApplicationModel>> getAllApplications() async {
-    dev.log('getAllApplications called', name: _logName);
-    try {
-      final rows =
-          await _service.rpc<List<dynamic>>('auth_get_all_osint_applications');
-      final apps = List<Map<String, dynamic>>.from(rows ?? [])
-          .map(OsintApplicationModel.fromJson)
-          .toList();
-      dev.log('getAllApplications returned ${apps.length} applications',
-          name: _logName);
-      return apps;
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in getAllApplications',
-          error: e, name: _logName);
-      rethrow;
-    }
-  }
-
-  @override
-  Future<void> setApplicationStatus(int applicationId, String status) async {
-    dev.log(
-        'setApplicationStatus called for id: $applicationId to status: $status',
-        name: _logName);
-    try {
-      await _service.rpc('auth_update_osint_application_status', params: {
-        'p_app_id': applicationId,
-        'p_status': status,
-      });
-      dev.log('setApplicationStatus success', name: _logName);
-    } on PostgrestException catch (e) {
-      dev.log('PostgrestException in setApplicationStatus',
-          error: e, name: _logName);
-      if (e.code == '42501') {
-        throw const ex.PermissionException(
-            'Only admins can review applications.');
-      }
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
 
   @override
   Future<void> awardAuraPoints(String userId, int points) async {

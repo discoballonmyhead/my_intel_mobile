@@ -10,8 +10,6 @@ abstract interface class ModerationRemoteDataSource {
   Future<Map<String, dynamic>> updateNote(
       int noteId, Map<String, dynamic> payload);
   Future<void> deleteNote(int noteId);
-  Future<List<Map<String, dynamic>>> fetchOpenClaims();
-  Future<void> updateClaim(int claimId, Map<String, dynamic> payload);
   Future<void> rateNote(int noteId, String accuracyRating);
   Future<void> insertFeedback(Map<String, dynamic> payload);
 }
@@ -67,26 +65,6 @@ class ModerationRemoteDataSourceImpl implements ModerationRemoteDataSource {
     try {
       await _service.rpc('mod_delete_note', params: {'p_note_id': noteId});
     } on PostgrestException catch (e) {
-      throw ex.ServerException(e.message, code: e.code);
-    }
-  }
-
-  @override
-  Future<List<Map<String, dynamic>>> fetchOpenClaims() async {
-    final res = await _service.rpc<List<dynamic>>('mod_get_open_claims');
-    return List<Map<String, dynamic>>.from(res ?? []);
-  }
-
-  @override
-  Future<void> updateClaim(int claimId, Map<String, dynamic> payload) async {
-    try {
-      await _service.rpc('mod_resolve_claim', params: {
-        'p_claim_id': claimId,
-        'p_payload': payload,
-      });
-    } on PostgrestException catch (e) {
-      if (e.code == '42501')
-        throw const ex.PermissionException('Only admins can resolve claims.');
       throw ex.ServerException(e.message, code: e.code);
     }
   }

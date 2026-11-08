@@ -354,7 +354,7 @@ class PostDetailCubit extends Cubit<PostDetailState> {
     }
   }
 
-  /// After a moderator removed a comment via [ModActions].
+  /// After a moderator removed a comment.
   void markRemoved(Comment comment) =>
       _upsert(comment.copyWith(moderationStatus: 'removed'));
 

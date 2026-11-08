@@ -11,6 +11,10 @@ import '../utils/result.dart';
 Future<Result<T>> guard<T>(Future<T> Function() action) async {
   try {
     return Ok(await action());
+  } on StaleGovernanceKeyException catch (e) {
+    return Err(ValidationFailure(e.message));
+  } on ReauthRequiredException catch (e) {
+    return Err(ReauthFailure(e.message, needsMfa: e.needsMfa));
   } on PermissionException catch (e) {
     return Err(PermissionFailure(e.message));
   } on ValidationException catch (e) {

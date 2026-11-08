@@ -10,7 +10,8 @@ enum ReportTargetType {
   stream('stream', 'Live stream'),
   communityNote('community_note', 'Community note'),
   story('story', 'Story'),
-  comment('comment', 'Comment');
+  comment('comment', 'Comment'),
+  article('article', 'Article');
 
   const ReportTargetType(this.value, this.label);
   final String value;

@@ -185,6 +185,10 @@ class Message extends Equatable {
     if (isDeleted) return 'Message deleted';
     if (isSystem && body == 'e2ee:identity_changed')
       return 'Security code changed';
+    if (isSystem && body == 'gov:reviewed') {
+      final d = createdAt.toLocal();
+      return 'Reviewed by the safety team · ${d.day}/${d.month}/${d.year}';
+    }
     if (isSilentSystem) return '';
     switch (encryption) {
       case MessageEncryption.waitingForKey:

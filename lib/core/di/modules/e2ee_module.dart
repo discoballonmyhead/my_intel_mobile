@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 
+import '../../config/env.dart';
 import '../../../features/e2ee/data/e2ee_api.dart';
 import '../../../features/e2ee/data/e2ee_remote_data_source.dart';
 import '../../../features/e2ee/data/e2ee_service.dart';
@@ -14,7 +15,8 @@ void registerE2eeModule(GetIt sl) {
     ..registerLazySingleton<E2eeRemoteDataSource>(
         () => E2eeRemoteDataSourceImpl(sl()))
     ..registerLazySingleton<E2eeStore>(SqfliteE2eeStore.new)
-    ..registerLazySingleton<E2eeService>(() => E2eeService(sl(), sl()))
+    ..registerLazySingleton<E2eeService>(
+        () => E2eeService(sl(), sl(), pinnedGovernanceRoot: Env.governanceRootKey))
     // messaging and reports only see these two interfaces
     ..registerLazySingleton<MessageCrypto>(() => sl<E2eeService>())
     ..registerLazySingleton<MessageEvidenceSource>(() => sl<E2eeService>())

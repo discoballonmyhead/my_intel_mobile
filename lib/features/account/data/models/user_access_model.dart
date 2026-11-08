@@ -35,9 +35,14 @@ class SanctionModel extends Sanction {
 class UserAccessModel extends UserAccess {
   const UserAccessModel({
     super.roles,
+    super.permissions,
+    super.staffRole,
+    super.rank,
     super.isOsint,
+    super.isReporter,
     super.isStaff,
     super.isAdmin,
+    super.isAppAdmin,
     super.isBanned,
     super.activeSanctions,
   });
@@ -51,11 +56,20 @@ class UserAccessModel extends UserAccess {
         .whereType<Map>()
         .map((m) => SanctionModel.fromJson(Map<String, dynamic>.from(m)))
         .toList();
+    final isStaff = (json['is_staff'] as bool?) ?? false;
+    final isAdmin = (json['is_admin'] as bool?) ?? false;
     return UserAccessModel(
       roles: roles,
+      // staff permission keys from the matrix (migration 15); empty for
+      // everyone else
+      permissions: (json['permissions'] as List<dynamic>? ?? const []).whereType<String>().toSet(),
+      staffRole: AppRole.fromValue(json['staff_role'] as String?),
+      rank: asInt(json['rank']),
       isOsint: (json['is_osint'] as bool?) ?? false,
-      isStaff: (json['is_staff'] as bool?) ?? false,
-      isAdmin: (json['is_admin'] as bool?) ?? false,
+      isReporter: (json['is_reporter'] as bool?) ?? false,
+      isStaff: isStaff,
+      isAdmin: isAdmin,
+      isAppAdmin: (json['is_app_admin'] as bool?) ?? false,
       isBanned: (json['is_banned'] as bool?) ?? false,
       activeSanctions: sanctions,
     );

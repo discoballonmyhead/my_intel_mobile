@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../../../features/account/data/datasources/account_remote_data_source.dart';
+import '../../../features/account/data/datasources/badge_request_data_source.dart';
 import '../../../features/account/data/repositories/account_repository_impl.dart';
 import '../../../features/account/domain/repositories/account_repository.dart';
 import '../../../features/account/domain/usecases/account_usecases.dart';
@@ -14,6 +15,7 @@ void registerAccountModule(GetIt sl) {
         () => AccountRemoteDataSourceImpl(sl()))
     ..registerLazySingleton<AccountRepository>(
         () => AccountRepositoryImpl(sl()))
+    ..registerLazySingleton<BadgeRequests>(() => BadgeRequests(sl()))
     ..registerLazySingleton(() => GetMyAccess(sl()))
     ..registerLazySingleton(() => WatchAccessChanges(sl()))
     ..registerLazySingleton(() => DeleteMyAccount(sl()))

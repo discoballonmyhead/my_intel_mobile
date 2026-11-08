@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/post.dart';
 
-enum PostAction { edit, delete, history, report, modRemove, viewAuthor }
+enum PostAction { edit, delete, history, report, viewAuthor }
 
 /// The ⋯ menu on a post. Only offers what the viewer is allowed to do; the
 /// RPCs enforce the same rules server-side.
@@ -73,12 +73,6 @@ class PostActionsSheet extends StatelessWidget {
               leading: Icon(Icons.flag_outlined, color: palette.warn),
               title: const Text('Report post'),
               onTap: () => pick(PostAction.report),
-            ),
-          if (isStaff && !isOwner && !post.isRemoved)
-            ListTile(
-              leading: Icon(Icons.gavel_outlined, color: palette.accent2),
-              title: const Text('Remove post (moderator)'),
-              onTap: () => pick(PostAction.modRemove),
             ),
         ],
       ),

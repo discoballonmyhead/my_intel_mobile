@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../../core/responsive/responsive_scope.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../account/presentation/cubits/access_cubit.dart';
 import '../../../auth/presentation/providers/auth_cubit.dart';
+import '../../../lean/presentation/cubits/lean_cubit.dart';
 import '../../domain/entities/profile.dart';
 import '../providers/profile_cubit.dart';
 import '../widgets/profile_ui.dart';
@@ -43,7 +44,8 @@ class SettingsPage extends StatelessWidget {
                 style: inter(15, color: palette.muted)),
             const SizedBox(height: 24),
             PillButton(
-                label: 'Sign out', onPressed: () => Navigator.of(sheet).pop(true)),
+                label: 'Sign out',
+                onPressed: () => Navigator.of(sheet).pop(true)),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.of(sheet).pop(false),
@@ -57,7 +59,8 @@ class SettingsPage extends StatelessWidget {
       ),
     );
     // The router's auth redirect takes over once signed out.
-    if (yes == true && context.mounted) await context.read<AuthCubit>().signOut();
+    if (yes == true && context.mounted)
+      await context.read<AuthCubit>().signOut();
   }
 
   @override
@@ -80,7 +83,8 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 40),
               children: [
-                if (showAnalystCard) _AnalystCard(application: state.application),
+                if (showAnalystCard)
+                  _AnalystCard(application: state.application),
                 SettingsGroup([
                   SettingsRow(
                     title: 'Appearance',
@@ -94,22 +98,17 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => context.push(AppRoutes.accountSettings),
                   ),
                   SettingsRow(
+                    title: 'Your compass',
+                    icon: Icons.explore_outlined,
+                    value: sl<LeanCubit>().state.status.enabled ? 'On' : 'Off',
+                    onTap: () => context.push(AppRoutes.compass),
+                  ),
+                  SettingsRow(
                     title: 'Support',
                     icon: Icons.help_outline_rounded,
                     onTap: () => context.push(AppRoutes.support),
                   ),
                 ]),
-                if (isStaff)
-                  SettingsGroup([
-                    SettingsRow(
-                      title: isAdmin ? 'Admin console' : 'Moderation',
-                      subtitle: isAdmin
-                          ? 'Users, reports, analyst applications and audit log'
-                          : 'Reported posts, comments and users',
-                      icon: Icons.admin_panel_settings_outlined,
-                      onTap: () => context.push(AppRoutes.admin),
-                    ),
-                  ]),
                 // As designed (Figma 3.7/3.8): one card, Delete account in red,
                 // no arrows on either row.
                 SettingsGroup([
@@ -150,8 +149,13 @@ class _AnalystCard extends StatelessWidget {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final app = application;
 
-    final (IconData icon, Color tint, String title, String body, String? action) =
-        switch (app) {
+    final (
+      IconData icon,
+      Color tint,
+      String title,
+      String body,
+      String? action
+    ) = switch (app) {
       null => (
           Icons.verified_user_rounded,
           palette.accent,
@@ -214,9 +218,11 @@ class _AnalystCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: inter(17, weight: FontWeight.w600, color: onSurface)),
+                      style:
+                          inter(17, weight: FontWeight.w600, color: onSurface)),
                   const SizedBox(height: 4),
-                  Text(body, style: inter(13, color: palette.muted, height: 1.4)),
+                  Text(body,
+                      style: inter(13, color: palette.muted, height: 1.4)),
                   if (action != null) ...[
                     const SizedBox(height: 14),
                     FilledButton(

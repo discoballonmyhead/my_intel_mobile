@@ -87,7 +87,8 @@ class SqfliteE2eeStore implements E2eeStore {
 
   @override
   Future<List<String>> keys(String prefix) async {
-    final rows = await _d.query('kv', columns: ['k'], where: 'k like ?', whereArgs: ['$prefix%']);
+    final rows = await _d.query('kv', columns: ['k'], where: 'substr(k, 1, ?) = ?',
+        whereArgs: [prefix.length, prefix]);
     return [for (final r in rows) r['k']! as String];
   }
 
@@ -107,6 +108,16 @@ class SqfliteE2eeStore implements E2eeStore {
     if (rows.isEmpty) return null;
     return _open(rows.first['v']! as Uint8List, 'plain:$messageId');
   }
+
+  @override
+  Future<Set<String>> plainConversations() async {
+    final rows = await _d.rawQuery('select distinct conv from plain');
+    return {for (final r in rows) r['conv']! as String};
+  }
+
+  @override
+  Future<void> deletePlainFor(String conversationId) =>
+      _d.delete('plain', where: 'conv = ?', whereArgs: [conversationId]);
 
   @override
   Future<List<(int, String, Map<String, dynamic>)>> recentPlain(int limit) async {

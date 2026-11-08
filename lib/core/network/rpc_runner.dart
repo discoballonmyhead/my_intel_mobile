@@ -15,6 +15,13 @@ Future<T> runRpc<T>(Future<T> Function() body) async {
     return await body();
   } on PostgrestException catch (e) {
     final message = RpcErrorMessages.describe(e.message);
+    final key = RpcErrorMessages.keyOf(e.message);
+    if (key == 'escrow_key_outdated')
+      throw ex.StaleGovernanceKeyException(message);
+    if (key == 'reauthentication_required' || key == 'mfa_required') {
+      throw ex.ReauthRequiredException(message,
+          needsMfa: key == 'mfa_required');
+    }
     switch (e.code) {
       case '42501':
         throw ex.PermissionException(message);

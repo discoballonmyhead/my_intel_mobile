@@ -74,9 +74,12 @@ class E2eeInboxBanner extends StatelessWidget {
 
 /// One line above the composer saying whether the chat is encrypted.
 class EncryptionNotice extends StatelessWidget {
-  const EncryptionNotice({required this.encrypted, this.waitingFor, super.key});
+  const EncryptionNotice({required this.encrypted, this.waitingFor, this.governance, super.key});
 
   final bool encrypted;
+
+  /// When the platform's governance key is on, every chat says so.
+  final GovernanceNotice? governance;
 
   /// Names of people still on an old app (messages to them aren't encrypted yet).
   final List<String>? waitingFor;
@@ -92,6 +95,8 @@ class EncryptionNotice extends StatelessWidget {
         : pending.isEmpty
             ? 'Messages will be end-to-end encrypted'
             : 'Not encrypted yet: ${pending.join(', ')} uses an older app';
+    final gov = governance;
+    final full = gov == null || !encrypted ? text : '$text · safety copy (tap for details)';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
@@ -101,14 +106,45 @@ class EncryptionNotice extends StatelessWidget {
               size: 13, color: encrypted || pending.isEmpty ? palette.verified : palette.warn),
           const SizedBox(width: 6),
           Flexible(
-            child: Text(text,
-                textAlign: TextAlign.center,
-                style: inter(12, color: palette.muted)),
+            child: GestureDetector(
+              onTap: gov == null ? null : () => _explain(context, gov),
+              child: Text(full,
+                  textAlign: TextAlign.center,
+                  style: inter(12, color: palette.muted)),
+            ),
           ),
         ],
       ),
     );
   }
+
+  static Future<void> _explain(BuildContext context, GovernanceNotice gov) => showSoftSheet<void>(
+        context,
+        (sheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Who can read this chat',
+                  style: inter(18, weight: FontWeight.w600, color: Theme.of(sheet).colorScheme.onSurface)),
+              const SizedBox(height: 10),
+              Text(
+                'Messages are end-to-end encrypted between the people in this chat. Your phone also '
+                'seals a safety copy of each message to the platform\'s governance key.\n\n'
+                'Nobody at the company can open it alone: it takes ${gov.threshold} of '
+                '${gov.holders} key holders to approve a review of one conversation, with a reason, '
+                'and the chat shows "Reviewed by the safety team" when that happens. The server '
+                'itself can never read your messages.',
+                textAlign: TextAlign.center,
+                style: inter(14, color: sheet.palette.muted, height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              Text('Governance key ${gov.fingerprint}',
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ],
+          ),
+        ),
+      );
 }
 
 /// "Verify security code": the 60-digit safety number to compare in person.
